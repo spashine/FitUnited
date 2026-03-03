@@ -8,21 +8,19 @@ const generateId = () => Math.random().toString(36).substring(2, 9);
 export function useLocalStorage<T>(key: string, initialValue: T) {
     // State to store our value
     // Pass initial state function to useState so logic is only executed once
-    const [storedValue, setStoredValue] = useState<T>(() => {
-        if (typeof window === 'undefined') {
-            return initialValue;
-        }
+    const [storedValue, setStoredValue] = useState<T>(initialValue);
+
+    useEffect(() => {
         try {
-            // Get from local storage by key
             const item = window.localStorage.getItem(key);
-            // Parse stored json or if none return initialValue
-            return item ? JSON.parse(item) : initialValue;
+            if (item) {
+                // eslint-disable-next-line react-hooks/set-state-in-effect
+                setStoredValue(JSON.parse(item));
+            }
         } catch (error) {
-            // If error also return initialValue
             console.warn(`Error reading localStorage key "${key}":`, error);
-            return initialValue;
         }
-    });
+    }, [key]);
 
     // Return a wrapped version of useState's setter function that ...
     // ... persists the new value to localStorage.
@@ -45,6 +43,6 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     return [storedValue, setValue] as const;
 }
 
-export function generateMockId() {
-    return generateId();
+export function generateMockId(prefix: string = '') {
+    return prefix + generateId();
 }

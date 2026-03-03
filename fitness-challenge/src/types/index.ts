@@ -27,6 +27,7 @@ export interface User {
   location: Location;
   teamId?: string | null;
   role?: 'admin' | 'user';
+  avatarUrl?: string;
 }
 
 export interface Team {
@@ -35,14 +36,50 @@ export interface Team {
   members: string[]; // User IDs
   captainId: string;
   pendingRequests: string[]; // User IDs requesting to join
+  brandImageUrl?: string;
 }
 
 export interface ActivityLog {
   id: string;
   userId: string;
   date: string; // YYYY-MM-DD
-  category: 'Movement' | 'Power' | 'Flow' | 'Zen' | 'WeekendDuo' | 'WeekendPhoto';
+  category: 'Sports' | 'Movement' | 'Power' | 'Flow' | 'Zen' | 'WeekendDuo' | 'WeekendPhoto';
   points: number;
   duration?: number; // duration in minutes (for regular activities)
   isWeekendChallenge?: boolean; // true for weekend bonus activities — bypass daily cap
+}
+
+export interface WeekendChallenge {
+  id: string;
+  weekNo: string;
+  name: string;
+  description: string;
+  bonusPointsDesc: string;
+  isVisible: boolean; // only one true at a time
+}
+
+export interface TeamBonusPoint {
+  id: string;
+  teamId: string;
+  challengeId: string;
+  points: number;
+  dateStr: string;
+}
+
+export interface Comment {
+  id: string;
+  userId: string;
+  content: string;
+  createdAt: number; // timestamp
+}
+
+export interface Post {
+  id: string;
+  userId: string;
+  content: string;
+  mediaUrl?: string; // URL or base64 data for image/video
+  createdAt: number; // timestamp
+  weekendChallengeId?: string; // Optional: tagged to a specific weekend challenge
+  likes: string[]; // user IDs who liked the post
+  comments: Comment[];
 }

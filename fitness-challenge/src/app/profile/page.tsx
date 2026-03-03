@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import { useState } from 'react';
@@ -19,6 +20,7 @@ export default function ProfilePage() {
     const [contactNumber, setContactNumber] = useState(currentUser?.contactNumber || '');
     const [workStream, setWorkStream] = useState<WorkStream>(currentUser?.workStream || 'Cloud');
     const [location, setLocation] = useState<Location>(currentUser?.location || 'US');
+    const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl || '');
 
     // Password fields
     const [currentPwd, setCurrentPwd] = useState('');
@@ -51,6 +53,7 @@ export default function ProfilePage() {
             contactNumber: contactNumber.trim(),
             workStream,
             location,
+            avatarUrl,
         });
 
         if (result.success) {
@@ -165,15 +168,44 @@ export default function ProfilePage() {
                         />
                     </div>
 
-                    <div>
-                        <label className={labelClass}>Contact Number</label>
-                        <input
-                            type="tel"
-                            value={contactNumber}
-                            onChange={(e) => setContactNumber(e.target.value)}
-                            className={inputClass}
-                            placeholder="+1 (555) 000-0000"
-                        />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label className={labelClass}>Contact Number</label>
+                            <input
+                                type="tel"
+                                value={contactNumber}
+                                onChange={(e) => setContactNumber(e.target.value)}
+                                className={inputClass}
+                                placeholder="+1 (555) 000-0000"
+                            />
+                        </div>
+                        <div>
+                            <label className={labelClass}>Profile Picture</label>
+                            <div className="flex items-center gap-4">
+                                {avatarUrl ? (
+                                    <div className="h-10 w-10 shrink-0 rounded-full overflow-hidden border border-gray-200">
+                                        <img src={avatarUrl} alt="Avatar profile" className="w-full h-full object-cover" />
+                                    </div>
+                                ) : (
+                                    <div className="h-10 w-10 shrink-0 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 text-gray-500 font-bold border border-gray-300">
+                                        {currentUser.name.charAt(0).toUpperCase()}
+                                    </div>
+                                )}
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-ey-yellow file:text-ey-dark hover:file:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-ey-yellow"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        if (file.size > 2 * 1024 * 1024) return alert("max 2MB");
+                                        const reader = new FileReader();
+                                        reader.onloadend = () => setAvatarUrl(reader.result as string);
+                                        reader.readAsDataURL(file);
+                                    }}
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

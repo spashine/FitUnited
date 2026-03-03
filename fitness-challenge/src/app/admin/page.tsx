@@ -1,10 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppContext } from '@/hooks/useAppContext';
-import { generateMockId } from '@/hooks/useLocalStorage';
-import { User } from '@/types';
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -12,10 +10,13 @@ export default function AdminDashboardPage() {
 
   // Note: For simplicity in this demo, we assume any logged-in user can view the admin dashboard,
   // or we could enforce a specific admin role. Sticking to simple redirect if not logged in.
-  if (!currentUser || currentUser.role !== 'admin') {
-    if (typeof window !== 'undefined') router.push('/');
-    return null;
-  }
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'admin') {
+      router.push('/');
+    }
+  }, [currentUser, router]);
+
+  if (!currentUser || currentUser.role !== 'admin') return null;
 
   // Calculate generic participation stats
   const totalEmployees = 132; // Given in requirements
@@ -77,7 +78,7 @@ export default function AdminDashboardPage() {
 
   const handleExport = () => {
     const csvContent = "data:text/csv;charset=utf-8,Rank,Team Name,Score\\n"
-      + sortedTeams.map((t, idx) => `${idx+1},${t.name},${t.score}`).join("\\n");
+      + sortedTeams.map((t, idx) => `${idx + 1},${t.name},${t.score}`).join("\\n");
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
@@ -159,11 +160,10 @@ export default function AdminDashboardPage() {
                 {sortedTeams.map((team, index) => (
                   <li key={team.id} className={`px-6 py-4 flex items-center justify-between ${index === 0 ? 'bg-amber-50/50' : ''}`}>
                     <div className="flex items-center gap-4">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                      index === 0 ? 'bg-amber-400 text-amber-900' : 
-                      index === 1 ? 'bg-slate-300 text-slate-800' :
-                      index === 2 ? 'bg-amber-700 text-amber-100' : 'bg-slate-100 text-slate-500'
-                    }`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${index === 0 ? 'bg-amber-400 text-amber-900' :
+                        index === 1 ? 'bg-slate-300 text-slate-800' :
+                          index === 2 ? 'bg-amber-700 text-amber-100' : 'bg-slate-100 text-slate-500'
+                        }`}>
                         {index + 1}
                       </div>
                       <div>
@@ -195,7 +195,7 @@ export default function AdminDashboardPage() {
                   <span className="text-indigo-600 font-bold">{US_Points} pts</span>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-3">
-                  <div className="bg-blue-500 h-3 rounded-full" style={{ width: `${Math.min(100, Math.max(5, (US_Points / (US_Points+Mexico_Points+India_Points+1)) * 100))}%` }}></div>
+                  <div className="bg-blue-500 h-3 rounded-full" style={{ width: `${Math.min(100, Math.max(5, (US_Points / (US_Points + Mexico_Points + India_Points + 1)) * 100))}%` }}></div>
                 </div>
               </div>
 
@@ -206,7 +206,7 @@ export default function AdminDashboardPage() {
                   <span className="text-indigo-600 font-bold">{India_Points} pts</span>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-3">
-                  <div className="bg-orange-500 h-3 rounded-full" style={{ width: `${Math.min(100, Math.max(5, (India_Points / (US_Points+Mexico_Points+India_Points+1)) * 100))}%` }}></div>
+                  <div className="bg-orange-500 h-3 rounded-full" style={{ width: `${Math.min(100, Math.max(5, (India_Points / (US_Points + Mexico_Points + India_Points + 1)) * 100))}%` }}></div>
                 </div>
               </div>
 
@@ -217,7 +217,7 @@ export default function AdminDashboardPage() {
                   <span className="text-indigo-600 font-bold">{Mexico_Points} pts</span>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-3">
-                  <div className="bg-emerald-500 h-3 rounded-full" style={{ width: `${Math.min(100, Math.max(5, (Mexico_Points / (US_Points+Mexico_Points+India_Points+1)) * 100))}%` }}></div>
+                  <div className="bg-emerald-500 h-3 rounded-full" style={{ width: `${Math.min(100, Math.max(5, (Mexico_Points / (US_Points + Mexico_Points + India_Points + 1)) * 100))}%` }}></div>
                 </div>
               </div>
             </div>

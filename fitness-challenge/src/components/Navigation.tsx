@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import Link from 'next/link';
@@ -10,11 +11,14 @@ export default function Navigation() {
 
     const navLinks = [
         { href: '/', label: 'Home' },
-        { href: '/dashboard', label: 'My Activity' },
-        { href: '/teams', label: 'My Team' },
-        { href: '/all-teams', label: 'All Teams' },
-        { href: '/leaderboard', label: 'Leaderboard' },
-        ...(currentUser?.role === 'admin' ? [{ href: '/admin', label: 'Admin' }] : []),
+        ...(currentUser ? [
+            { href: '/dashboard', label: 'My Activity' },
+            { href: '/teams', label: 'My Team' },
+            { href: '/all-teams', label: 'All Teams' },
+            { href: '/leaderboard', label: 'Leaderboard' }
+        ] : []),
+        { href: '/social-wall', label: 'Social Wall' },
+        ...(currentUser?.role === 'admin' ? [{ href: '/admin/weekend', label: 'Weekend Challenges' }] : []),
     ];
 
     return (
@@ -50,13 +54,22 @@ export default function Navigation() {
                                     className="flex items-center gap-1.5 text-ey-yellow font-semibold hover:text-white transition-colors"
                                     title="View / Edit Profile"
                                 >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                    </svg>
+                                    {currentUser.avatarUrl ? (
+                                        <div className="w-6 h-6 rounded-full overflow-hidden border border-ey-yellow/30 bg-white shrink-0">
+                                            <img src={currentUser.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                                        </div>
+                                    ) : (
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                        </svg>
+                                    )}
                                     <span>{currentUser.fullName || currentUser.name}</span>
                                 </Link>
                                 <button
-                                    onClick={logoutUser}
+                                    onClick={() => {
+                                        logoutUser();
+                                        window.location.href = '/';
+                                    }}
                                     className="bg-white/10 hover:bg-white/20 px-3 py-1 rounded text-xs font-semibold transition-colors"
                                 >
                                     Logout

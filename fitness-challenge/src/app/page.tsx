@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import { useState } from 'react';
@@ -44,6 +45,7 @@ export default function Home() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [workStream, setWorkStream] = useState<WorkStream>('Cloud');
   const [location, setLocation] = useState<Location>('US');
+  const [avatarUrl, setAvatarUrl] = useState('');
 
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -116,6 +118,7 @@ export default function Home() {
       password: regPassword,
       workStream,
       location,
+      avatarUrl,
     });
 
     if (!result.success) {
@@ -438,17 +441,45 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Username */}
-        <div>
-          <label className={labelClass}>Username <span className="text-red-500">*</span></label>
-          <input
-            type="text"
-            required
-            value={regUsername}
-            onChange={(e) => setRegUsername(e.target.value)}
-            className={inputClass}
-            placeholder="e.g. jdoe"
-          />
+        {/* Username & Avatar — side by side */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Username <span className="text-red-500">*</span></label>
+            <input
+              type="text"
+              required
+              value={regUsername}
+              onChange={(e) => setRegUsername(e.target.value)}
+              className={inputClass}
+              placeholder="e.g. jdoe"
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Profile Picture (Optional)</label>
+            <input
+              type="file"
+              accept="image/*"
+              className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-ey-yellow file:text-ey-dark hover:file:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-ey-yellow rounded-lg border border-gray-300"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                if (file.size > 2 * 1024 * 1024) {
+                  alert("Image too large (max 2MB)");
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                  setAvatarUrl(reader.result as string);
+                };
+                reader.readAsDataURL(file);
+              }}
+            />
+            {avatarUrl && (
+              <div className="mt-2 h-10 w-10 text-xs rounded-full overflow-hidden border border-gray-200">
+                <img src={avatarUrl} alt="Avatar preview" className="w-full h-full object-cover" />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Password & Confirm Password — side by side */}

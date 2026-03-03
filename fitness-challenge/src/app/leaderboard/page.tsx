@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -6,13 +7,31 @@ import { Team } from '@/types';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+/** Format a Date object as YYYY-MM-DD in local timezone (avoids UTC shift from toISOString) */
+function toLocalDateStr(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
 function getWeekMonday(dateStr: string) {
     const d = new Date(dateStr + 'T00:00:00');
     const dow = d.getDay();
     const mondayOffset = dow === 0 ? -6 : 1 - dow;
     const mon = new Date(d);
     mon.setDate(d.getDate() + mondayOffset);
-    return mon.toISOString().split('T')[0];
+    return toLocalDateStr(mon);
+}
+
+/** Returns all 7 days (Mon→Sun) for a week given its Monday date string */
+function getWeekDays(mondayStr: string): string[] {
+    const mon = new Date(mondayStr + 'T00:00:00');
+    return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(mon);
+        d.setDate(mon.getDate() + i);
+        return toLocalDateStr(d);
+    });
 }
 
 function fmtDate(dateStr: string) {
@@ -50,12 +69,12 @@ function medal(rank: number) {
 type Tab = 'teams' | 'individuals';
 
 export default function LeaderboardPage() {
-    const { users, teams, activities } = useAppContext();
+    const { users, teams, activities, teamBonusPoints } = useAppContext();
     const [activeTab, setActiveTab] = useState<Tab>('teams');
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
     const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = toLocalDateStr(new Date());
     const currentWeekMonday = getWeekMonday(todayStr);
 
     const toggleWeek = (wk: string) => {
@@ -69,7 +88,7 @@ export default function LeaderboardPage() {
 
     // ── Shared: Build weekly data from activities ────────────────────────────
 
-    const { weeklyData, sortedWeeks } = useMemo(() => {
+    const { weeklyData, sortedWeeks, pastWeeks } = useMemo(() => {
         const allDates = [...new Set(activities.map(a => a.date))].sort();
         const weeks: Record<string, string[]> = {};
         allDates.forEach(date => {
@@ -78,37 +97,51 @@ export default function LeaderboardPage() {
             if (!weeks[wk].includes(date)) weeks[wk].push(date);
         });
         Object.values(weeks).forEach(arr => arr.sort());
-        const sorted = Object.keys(weeks).sort().reverse();
-        return { weeklyData: weeks, sortedWeeks: sorted };
-    }, [activities]);
+        // Chronological order (oldest week first)
+        const sorted = Object.keys(weeks).sort();
+        // Past weeks = all weeks except the current week, in chronological order
+        const past = sorted.filter(wk => wk !== currentWeekMonday);
+        return { weeklyData: weeks, sortedWeeks: sorted, pastWeeks: past };
+    }, [activities, currentWeekMonday]);
 
     // ── Point helpers ────────────────────────────────────────────────────────
 
     // Points for a set of user IDs on a specific date
-    const getGroupPointsOnDate = (userIds: string[], date: string) =>
-        activities.filter(a => userIds.includes(a.userId) && a.date === date)
-            .reduce((sum, a) => sum + a.points, 0);
+    const getGroupPointsOnDate = (userIds: string[], date: string, teamId: string | boolean = false) => {
+        let sum = activities.filter(a => userIds.includes(a.userId) && a.date === date)
+            .reduce((s, a) => s + a.points, 0);
+
+        if (teamId && userIds.length > 0) {
+            // Check if every user in the team logged >0 points on this date
+            const allLogged = userIds.every(uid =>
+                activities.some(a => a.userId === uid && a.date === date && a.points > 0)
+            );
+            if (allLogged) sum += 50; // Team multiplayer bonus
+
+            if (typeof teamId === 'string') {
+                // Apply any manual team bonus points awarded on this date
+                const manualBonus = teamBonusPoints
+                    .filter(b => b.teamId === teamId && b.dateStr === date)
+                    .reduce((s, b) => s + b.points, 0);
+                sum += manualBonus;
+            }
+        }
+        return sum;
+    };
 
     // Weekly total for a set of user IDs
-    const getGroupWeeklyTotal = (userIds: string[], weekMonday: string) => {
+    const getGroupWeeklyTotal = (userIds: string[], weekMonday: string, teamId: string | boolean = false) => {
         const dates = weeklyData[weekMonday] || [];
-        return dates.reduce((sum, d) => sum + getGroupPointsOnDate(userIds, d), 0);
+        return dates.reduce((sum, d) => sum + getGroupPointsOnDate(userIds, d, teamId), 0);
     };
 
     // Grand total for a set of user IDs
-    const getGroupGrandTotal = (userIds: string[]) =>
-        activities.filter(a => userIds.includes(a.userId))
-            .reduce((sum, a) => sum + a.points, 0);
-
-    // Single user helpers (convenience)
-    const getUserPointsOnDate = (userId: string, date: string) =>
-        getGroupPointsOnDate([userId], date);
-
-    const getUserWeeklyTotal = (userId: string, weekMonday: string) =>
-        getGroupWeeklyTotal([userId], weekMonday);
+    const getGroupGrandTotal = (userIds: string[], teamId: string | boolean = false) => {
+        return sortedWeeks.reduce((sum, wk) => sum + getGroupWeeklyTotal(userIds, wk, teamId), 0);
+    };
 
     const getUserGrandTotal = (userId: string) =>
-        getGroupGrandTotal([userId]);
+        getGroupGrandTotal([userId], false);
 
     // ── Tab 1: Team Scores ──────────────────────────────────────────────────
 
@@ -117,7 +150,7 @@ export default function LeaderboardPage() {
             .filter(team => Array.isArray(team.members) && team.members.length > 0)
             .map(team => {
                 const memberIds = team.members || [];
-                const teamTotal = getGroupGrandTotal(memberIds);
+                const teamTotal = getGroupGrandTotal(memberIds, team.id);
                 return { team, memberIds, teamTotal };
             })
             .sort((a, b) => b.teamTotal - a.teamTotal);
@@ -152,8 +185,37 @@ export default function LeaderboardPage() {
 
     const renderColumnHeaders = () => (
         <>
-            {/* Current week: day columns */}
-            {sortedWeeks.length > 0 && sortedWeeks[0] === currentWeekMonday && (
+            {/* Past weeks: weekly totals (Week 1 → last completed week, chronological) */}
+            {pastWeeks.map((wk, idx) => (
+                <React.Fragment key={wk}>
+                    <th
+                        className="text-center px-3 py-3 font-bold text-slate-500 text-[10px] uppercase tracking-wider min-w-[80px] cursor-pointer hover:text-indigo-600 transition-colors select-none"
+                        onClick={() => toggleWeek(wk)}
+                    >
+                        <div className="flex items-center justify-center gap-1">
+                            <svg className={`w-3 h-3 transition-transform ${expandedWeeks.has(wk) ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                            <div>
+                                <div>Week {idx + 1}</div>
+                                <div className="text-[9px] text-slate-400 font-normal">{fmtWeekRange(wk)}</div>
+                            </div>
+                        </div>
+                    </th>
+                    {expandedWeeks.has(wk) && getWeekDays(wk).map(date => {
+                        const f = fmtDate(date);
+                        return (
+                            <th key={date} className="text-center px-2 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider min-w-[56px]">
+                                <div>{f.day}</div>
+                                <div className="text-[9px] font-normal">{f.date}</div>
+                            </th>
+                        );
+                    })}
+                </React.Fragment>
+            ))}
+
+            {/* Current week: day-wise columns */}
+            {sortedWeeks.includes(currentWeekMonday) && (
                 <>
                     {(weeklyData[currentWeekMonday] || []).map(date => {
                         const f = fmtDate(date);
@@ -170,35 +232,6 @@ export default function LeaderboardPage() {
                 </>
             )}
 
-            {/* Past weeks: collapsed */}
-            {sortedWeeks.filter(wk => wk !== currentWeekMonday).map(wk => (
-                <React.Fragment key={wk}>
-                    <th
-                        className="text-center px-3 py-3 font-bold text-slate-500 text-[10px] uppercase tracking-wider min-w-[80px] cursor-pointer hover:text-indigo-600 transition-colors select-none"
-                        onClick={() => toggleWeek(wk)}
-                    >
-                        <div className="flex items-center justify-center gap-1">
-                            <svg className={`w-3 h-3 transition-transform ${expandedWeeks.has(wk) ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                            <div>
-                                <div>Week</div>
-                                <div className="text-[9px] text-slate-400 font-normal">{fmtWeekRange(wk)}</div>
-                            </div>
-                        </div>
-                    </th>
-                    {expandedWeeks.has(wk) && (weeklyData[wk] || []).map(date => {
-                        const f = fmtDate(date);
-                        return (
-                            <th key={date} className="text-center px-2 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider min-w-[56px]">
-                                <div>{f.day}</div>
-                                <div className="text-[9px] font-normal">{f.date}</div>
-                            </th>
-                        );
-                    })}
-                </React.Fragment>
-            ))}
-
             {/* Grand Total */}
             <th className="text-center px-4 py-3 font-black text-indigo-800 text-[10px] uppercase tracking-wider bg-indigo-50 min-w-[68px]">
                 Total
@@ -208,13 +241,45 @@ export default function LeaderboardPage() {
 
     // ── Shared data cell renderer for a given set of user IDs ────────────────
 
-    const renderDataCells = (userIds: string[]) => (
+    const renderDataCells = (userIds: string[], teamId: string | boolean = false) => (
         <>
-            {/* Current week day cells */}
-            {sortedWeeks.length > 0 && sortedWeeks[0] === currentWeekMonday && (
+            {/* Past week cells: weekly totals (Week 1 → last completed week) */}
+            {pastWeeks.map(wk => (
+                <React.Fragment key={wk}>
+                    <td className="text-center px-3 py-3">
+                        {(() => {
+                            const total = getGroupWeeklyTotal(userIds, wk, teamId);
+                            return total > 0 ? (
+                                <span className={`inline-block min-w-[36px] px-1.5 py-1 rounded text-xs font-bold ${pointBadge(total)}`}>
+                                    {total}
+                                </span>
+                            ) : (
+                                <span className="text-slate-300 text-xs">–</span>
+                            );
+                        })()}
+                    </td>
+                    {expandedWeeks.has(wk) && getWeekDays(wk).map(date => {
+                        const pts = getGroupPointsOnDate(userIds, date, teamId);
+                        return (
+                            <td key={date} className="text-center px-2 py-3">
+                                {pts > 0 ? (
+                                    <span className={`inline-block min-w-[36px] px-1.5 py-1 rounded text-xs font-bold ${pointBadge(pts)}`}>
+                                        {pts}
+                                    </span>
+                                ) : (
+                                    <span className="text-slate-300 text-xs">–</span>
+                                )}
+                            </td>
+                        );
+                    })}
+                </React.Fragment>
+            ))}
+
+            {/* Current week: day-wise cells */}
+            {sortedWeeks.includes(currentWeekMonday) && (
                 <>
                     {(weeklyData[currentWeekMonday] || []).map(date => {
-                        const pts = getGroupPointsOnDate(userIds, date);
+                        const pts = getGroupPointsOnDate(userIds, date, teamId);
                         return (
                             <td key={date} className="text-center px-2 py-3">
                                 {pts > 0 ? (
@@ -229,47 +294,15 @@ export default function LeaderboardPage() {
                     })}
                     <td className="text-center px-3 py-3 bg-indigo-50/30">
                         <span className="font-bold text-indigo-700 text-xs">
-                            {getGroupWeeklyTotal(userIds, currentWeekMonday)}
+                            {getGroupWeeklyTotal(userIds, currentWeekMonday, teamId)}
                         </span>
                     </td>
                 </>
             )}
 
-            {/* Past week cells */}
-            {sortedWeeks.filter(wk => wk !== currentWeekMonday).map(wk => (
-                <React.Fragment key={wk}>
-                    <td className="text-center px-3 py-3">
-                        {(() => {
-                            const total = getGroupWeeklyTotal(userIds, wk);
-                            return total > 0 ? (
-                                <span className={`inline-block min-w-[36px] px-1.5 py-1 rounded text-xs font-bold ${pointBadge(total)}`}>
-                                    {total}
-                                </span>
-                            ) : (
-                                <span className="text-slate-300 text-xs">–</span>
-                            );
-                        })()}
-                    </td>
-                    {expandedWeeks.has(wk) && (weeklyData[wk] || []).map(date => {
-                        const pts = getGroupPointsOnDate(userIds, date);
-                        return (
-                            <td key={date} className="text-center px-2 py-3">
-                                {pts > 0 ? (
-                                    <span className={`inline-block min-w-[36px] px-1.5 py-1 rounded text-xs font-bold ${pointBadge(pts)}`}>
-                                        {pts}
-                                    </span>
-                                ) : (
-                                    <span className="text-slate-300 text-xs">–</span>
-                                )}
-                            </td>
-                        );
-                    })}
-                </React.Fragment>
-            ))}
-
             {/* Grand Total */}
             <td className="text-center px-4 py-3 bg-indigo-50/50">
-                <span className="font-black text-indigo-800 text-sm">{getGroupGrandTotal(userIds)}</span>
+                <span className="font-black text-indigo-800 text-sm">{getGroupGrandTotal(userIds, teamId)}</span>
             </td>
         </>
     );
@@ -385,13 +418,26 @@ export default function LeaderboardPage() {
                                                     </span>
                                                 </td>
                                                 <td className="px-4 py-3 sticky left-0 bg-inherit z-10">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-semibold text-slate-800">{member.name}</span>
-                                                        {member.id === selectedTeam.captainId && (
-                                                            <span className="text-[10px] uppercase font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">C</span>
+                                                    <div className="flex items-center gap-3 w-max">
+                                                        {member.avatarUrl ? (
+                                                            <div className="w-8 h-8 rounded-full shadow-sm border border-slate-200 overflow-hidden bg-white shrink-0">
+                                                                <img src={member.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                                                            </div>
+                                                        ) : (
+                                                            <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-bold text-xs shrink-0">
+                                                                {member.name.charAt(0).toUpperCase()}
+                                                            </div>
                                                         )}
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-semibold text-slate-800">{member.name}</span>
+                                                                {member.id === selectedTeam.captainId && (
+                                                                    <span className="text-[10px] uppercase font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">C</span>
+                                                                )}
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-400">{member.workStream} • {member.location}</div>
+                                                        </div>
                                                     </div>
-                                                    <div className="text-[10px] text-slate-400">{member.workStream} • {member.location}</div>
                                                 </td>
                                                 {renderDataCells([member.id])}
                                             </tr>
@@ -402,7 +448,7 @@ export default function LeaderboardPage() {
                                         <td className="px-4 py-3 sticky left-0 bg-indigo-50 z-10">
                                             <span className="font-black text-indigo-800 text-xs uppercase">Team Total</span>
                                         </td>
-                                        {renderDataCells(selectedTeam.members || [])}
+                                        {renderDataCells(selectedTeam.members || [], selectedTeam.id)}
                                     </tr>
                                 </tbody>
                             </table>
@@ -458,20 +504,31 @@ export default function LeaderboardPage() {
                                                 <td className="px-4 py-3 sticky left-0 bg-inherit z-10">
                                                     <button
                                                         onClick={() => handleTeamClick(entry.team)}
-                                                        className="text-left group"
+                                                        className="text-left group flex items-center gap-3 w-max"
                                                     >
-                                                        <div className="font-bold text-indigo-600 group-hover:text-indigo-800 group-hover:underline transition-colors flex items-center gap-1.5">
-                                                            {entry.team.name}
-                                                            <svg className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                            </svg>
+                                                        {entry.team.brandImageUrl ? (
+                                                            <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 bg-white shrink-0">
+                                                                <img src={entry.team.brandImageUrl} alt="Team Logo" className="w-full h-full object-cover" />
+                                                            </div>
+                                                        ) : (
+                                                            <div className="w-10 h-10 rounded-lg bg-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-700 font-bold shrink-0">
+                                                                {entry.team.name.charAt(0).toUpperCase()}
+                                                            </div>
+                                                        )}
+                                                        <div>
+                                                            <div className="font-bold text-indigo-600 group-hover:text-indigo-800 group-hover:underline transition-colors flex items-center gap-1.5">
+                                                                {entry.team.name}
+                                                                <svg className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                                </svg>
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-400">{entry.memberIds.length} member{entry.memberIds.length !== 1 ? 's' : ''}</div>
                                                         </div>
-                                                        <div className="text-[10px] text-slate-400">{entry.memberIds.length} member{entry.memberIds.length !== 1 ? 's' : ''}</div>
                                                     </button>
                                                 </td>
 
                                                 {/* Score cells — aggregated across all team members */}
-                                                {renderDataCells(entry.memberIds)}
+                                                {renderDataCells(entry.memberIds, entry.team.id)}
                                             </tr>
                                         ))}
                                     </tbody>
@@ -524,8 +581,21 @@ export default function LeaderboardPage() {
                                                         </span>
                                                     </td>
                                                     <td className="px-4 py-3 sticky left-0 bg-inherit z-10">
-                                                        <div className="font-semibold text-slate-800">{user.name}</div>
-                                                        {team && <div className="text-[10px] text-slate-400">{team.name}</div>}
+                                                        <div className="flex items-center gap-3 w-max">
+                                                            {user.avatarUrl ? (
+                                                                <div className="w-8 h-8 rounded-full border border-slate-200 shadow-sm overflow-hidden bg-white shrink-0">
+                                                                    <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                                                                </div>
+                                                            ) : (
+                                                                <div className="w-8 h-8 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center text-slate-500 font-bold shrink-0">
+                                                                    {user.name.charAt(0).toUpperCase()}
+                                                                </div>
+                                                            )}
+                                                            <div>
+                                                                <div className="font-semibold text-slate-800">{user.name}</div>
+                                                                {team && <div className="text-[10px] text-slate-400">{team.name}</div>}
+                                                            </div>
+                                                        </div>
                                                     </td>
                                                     {renderDataCells([user.id])}
                                                 </tr>

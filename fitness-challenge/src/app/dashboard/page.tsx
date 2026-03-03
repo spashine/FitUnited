@@ -1,22 +1,24 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppContext } from '@/hooks/useAppContext';
 import { ActivityLog } from '@/types';
 
 const ACTIVITY_CATEGORIES = [
-  { id: 'Movement', name: 'Movement', desc: 'Walking, Running, Cycling', ptsPerSlot: 10, slotMins: 30, color: 'bg-emerald-500', icon: '🚶' },
-  { id: 'Power', name: 'Power', desc: 'Weightlifting, HIIT, Sports', ptsPerSlot: 20, slotMins: 30, color: 'bg-rose-500', icon: '💪' },
-  { id: 'Flow', name: 'Flow', desc: 'Yoga, Pilates, Stretching', ptsPerSlot: 15, slotMins: 30, color: 'bg-cyan-500', icon: '🧘' },
-  { id: 'Zen', name: 'Zen', desc: 'Meditation, 7hr+ Sleep', ptsPerSlot: 5, slotMins: 30, color: 'bg-indigo-400', icon: '🧠' },
-  { id: 'WeekendDuo', name: 'Duo Call ★', desc: 'Global Duo Walk & Talk', ptsPerSlot: 100, slotMins: 0, color: 'bg-purple-500', icon: '📞' },
-  { id: 'WeekendPhoto', name: 'Photo Proof ★', desc: 'Weekend Challenge Photo', ptsPerSlot: 50, slotMins: 0, color: 'bg-purple-400', icon: '📸' },
+  { id: 'Sports', name: 'Sports', desc: 'Cricket, Golf, Pickleball, Tennis, Football', ptsPerSlot: 20, slotMins: 60, color: 'bg-amber-500', icon: '🏏', isAchievement: false },
+  { id: 'Movement', name: 'Movement', desc: 'Walking, Running, Cycling, Swimming', ptsPerSlot: 10, slotMins: 30, color: 'bg-emerald-500', icon: '🚶', isAchievement: false },
+  { id: 'Power', name: 'Power', desc: 'Weightlifting, HIIT, CrossFit', ptsPerSlot: 20, slotMins: 30, color: 'bg-rose-500', icon: '💪', isAchievement: false },
+  { id: 'Flow', name: 'Flow', desc: 'Yoga, Pilates, Stretching', ptsPerSlot: 15, slotMins: 30, color: 'bg-cyan-500', icon: '🧘', isAchievement: false },
+  { id: 'Zen', name: 'Zen', desc: 'Meditation, 7+ hrs Sleep, Hydration', ptsPerSlot: 5, slotMins: 0, color: 'bg-indigo-400', icon: '🧠', isAchievement: true }
 ] as const;
 
 function calculatePoints(categoryId: string, durationMins: number): number {
   const cat = ACTIVITY_CATEGORIES.find(c => c.id === categoryId);
-  if (!cat || cat.slotMins === 0) return cat?.ptsPerSlot || 0;
+  if (!cat) return 0;
+  // Achievement-based (Zen): return fixed points
+  if (cat.isAchievement || (cat.slotMins as number) === 0) return cat.ptsPerSlot;
+  // Duration-based: calculate from time slots
   const slots = Math.floor(durationMins / cat.slotMins);
   return slots * cat.ptsPerSlot;
 }
@@ -55,7 +57,7 @@ function formatDuration(mins: number) {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { currentUser, activities, logActivity, isWeekendChallengePublished } = useAppContext();
+  const { currentUser, activities, logActivity, weekendChallenges } = useAppContext();
 
   const today = new Date();
   const todayStr = fmtISO(today);
@@ -67,21 +69,17 @@ export default function DashboardPage() {
   const [duration, setDuration] = useState<number>(30);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-  const [duoLogged, setDuoLogged] = useState(false);
-  const [photoLogged, setPhotoLogged] = useState(false);
 
   // Protect route
-  if (!currentUser) {
-    if (typeof window !== 'undefined') router.push('/');
-    return null;
-  }
+  useEffect(() => {
+    if (!currentUser) router.push('/');
+  }, [currentUser, router]);
+
 
   // ────── Points for selected date ──────
-  const selectedDateActivities = activities.filter(a => a.userId === currentUser.id && a.date === date);
+  const selectedDateActivities = activities.filter(a => a.userId === currentUser?.id && a.date === date);
   const selectedDateRegular = selectedDateActivities.filter(a => !a.isWeekendChallenge);
   const selectedDatePoints = selectedDateRegular.reduce((sum, a) => sum + a.points, 0);
-  const selectedDateDuration = selectedDateRegular.reduce((sum, a) => sum + (a.duration || 0), 0);
-  const selectedDateWeekendPts = selectedDateActivities.filter(a => a.isWeekendChallenge).reduce((sum, a) => sum + a.points, 0);
 
   const estimatedPoints = calculatePoints(selectedCategory, duration);
   const remainingCap = Math.max(0, 100 - selectedDatePoints);
@@ -89,10 +87,11 @@ export default function DashboardPage() {
 
   // ────── All user activities sorted by date (most recent first) ──────
   const allMyActivities = useMemo(() => {
+    if (!currentUser) return [];
     return activities
       .filter(a => a.userId === currentUser.id)
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [activities, currentUser.id]);
+  }, [activities, currentUser]);
 
   // Group by date
   const groupedByDate = useMemo(() => {
@@ -121,13 +120,16 @@ export default function DashboardPage() {
     setDate(val);
   };
 
+  const selectedCatDef = ACTIVITY_CATEGORIES.find(c => c.id === selectedCategory);
+  const isAchievementBased = selectedCatDef?.isAchievement ?? false;
+
   // ────── Submit handler ──────
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
 
-    if (duration <= 0) {
+    if (!isAchievementBased && duration <= 0) {
       setErrorMsg('Please enter a valid duration (minimum 1 minute).');
       return;
     }
@@ -139,19 +141,26 @@ export default function DashboardPage() {
       return;
     }
 
-    const result = logActivity({ date, category: selectedCategory, points: pts, duration });
+    const result = logActivity({
+      date,
+      category: selectedCategory,
+      points: pts,
+      ...(isAchievementBased ? {} : { duration }),
+    });
 
     if (!result.success) {
       setErrorMsg(result.message || 'Error logging activity');
     } else {
       const catDef = ACTIVITY_CATEGORIES.find(c => c.id === selectedCategory);
-      setSuccessMsg(`Logged ${duration} mins of ${catDef?.name} for ${fmtDateFriendly(date)} → +${Math.min(pts, remainingCap)} pts!`);
-      setDuration(30);
+      const logLabel = isAchievementBased
+        ? `${catDef?.name} achievement`
+        : `${duration} mins of ${catDef?.name}`;
+      setSuccessMsg(`Logged ${logLabel} for ${fmtDateFriendly(date)} → +${Math.min(pts, remainingCap)} pts!`);
+      if (!isAchievementBased) setDuration(30);
       setTimeout(() => setSuccessMsg(''), 4000);
     }
   };
 
-  const isWeekendUnlock = isWeekendChallengePublished;
 
   // ────── Quick-pick day buttons for current week ──────
   const weekDays: { label: string; dateStr: string; dayName: string }[] = [];
@@ -166,6 +175,8 @@ export default function DashboardPage() {
       dayName: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     });
   }
+
+  if (!currentUser) return null;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -247,7 +258,7 @@ export default function DashboardPage() {
                       <span>{cat.icon}</span>
                       <span>{cat.name}</span>
                       <span className={`text-[9px] px-1 py-0.5 rounded ${isSelected ? 'bg-indigo-500 text-indigo-200' : 'bg-slate-200 text-slate-500'}`}>
-                        {cat.ptsPerSlot}/{cat.slotMins}m
+                        {cat.isAchievement ? `${cat.ptsPerSlot}/act` : `${cat.ptsPerSlot}/${cat.slotMins}m`}
                       </span>
                     </div>
                     <span className={`text-[10px] font-normal mt-0.5 ${isSelected ? 'text-indigo-200' : 'text-slate-400'}`}>
@@ -259,36 +270,47 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Row 3: Duration + Submit */}
+          {/* Row 3: Duration / Achievement + Submit */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider w-10 shrink-0">Time</span>
-            <div className="flex gap-1 flex-wrap">
-              {[15, 30, 45, 60, 90, 120].map(mins => (
-                <button
-                  key={mins}
-                  type="button"
-                  onClick={() => setDuration(mins)}
-                  className={`px-2 py-1 rounded-md text-[11px] font-bold transition-all ${duration === mins
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                    }`}
-                >
-                  {formatDuration(mins)}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-1">
-              <input
-                type="number"
-                min="1"
-                max="480"
-                required
-                value={duration}
-                onChange={(e) => setDuration(Math.max(0, parseInt(e.target.value) || 0))}
-                className="w-16 px-2 py-1 border border-slate-200 rounded-md text-center font-bold text-sm focus:ring-1 focus:ring-indigo-400 outline-none"
-              />
-              <span className="text-[10px] text-slate-400">min</span>
-            </div>
+            {isAchievementBased ? (
+              <>
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider w-10 shrink-0">Earn</span>
+                <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">
+                  +{selectedCatDef?.ptsPerSlot} pts per achievement
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider w-10 shrink-0">Time</span>
+                <div className="flex gap-1 flex-wrap">
+                  {[15, 30, 45, 60, 90, 120].map(mins => (
+                    <button
+                      key={mins}
+                      type="button"
+                      onClick={() => setDuration(mins)}
+                      className={`px-2 py-1 rounded-md text-[11px] font-bold transition-all ${duration === mins
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                        }`}
+                    >
+                      {formatDuration(mins)}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="1"
+                    max="480"
+                    required
+                    value={duration}
+                    onChange={(e) => setDuration(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-16 px-2 py-1 border border-slate-200 rounded-md text-center font-bold text-sm focus:ring-1 focus:ring-indigo-400 outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400">min</span>
+                </div>
+              </>
+            )}
 
             {/* Points preview + Submit inline */}
             <div className="flex items-center gap-2 ml-auto">
@@ -303,7 +325,7 @@ export default function DashboardPage() {
                 disabled={selectedDatePoints >= 100}
                 className="px-5 py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg shadow-sm hover:bg-indigo-700 transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
               >
-                {selectedDatePoints >= 100 ? 'Cap Reached' : `Log ${formatDuration(duration)}`}
+                {selectedDatePoints >= 100 ? 'Cap Reached' : isAchievementBased ? 'Log Achievement' : `Log ${formatDuration(duration)}`}
               </button>
             </div>
           </div>
@@ -311,113 +333,43 @@ export default function DashboardPage() {
       </div>
 
       {/* ═══════════════════════════════════════════════
-          WEEKEND CHALLENGE
+          ACTIVE WEEKEND CHALLENGE
          ═══════════════════════════════════════════════ */}
-      <div className={`p-6 md:p-8 rounded-2xl shadow-sm border transition-all ${isWeekendUnlock
-        ? 'bg-gradient-to-br from-indigo-900 to-purple-900 border-indigo-500 text-white'
-        : 'bg-slate-50 border-dashed border-slate-300 text-slate-500'
-        }`}>
-        <div className="flex justify-between items-start mb-4">
-          <h2 className={`text-xl font-bold flex items-center gap-2 ${isWeekendUnlock ? 'text-white' : 'text-slate-700'}`}>
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-            </svg>
-            Weekend Special Challenge
-          </h2>
-          {isWeekendUnlock && (
-            <span className="bg-gradient-to-r from-pink-500 to-orange-400 text-xs font-bold px-3 py-1 rounded-full text-white animate-pulse">
-              ACTIVE NOW
-            </span>
-          )}
-        </div>
+      {(() => {
+        const activeWeekendChallenge = weekendChallenges.find(c => c.isVisible);
+        if (!activeWeekendChallenge) return null;
 
-        {!isWeekendUnlock ? (
-          <div className="text-center py-8">
-            <svg className="w-12 h-12 mx-auto text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-            <p className="font-medium text-slate-600">Unlocks Friday at 18:00 IST</p>
-            <p className="text-sm mt-1">Get ready to upload photo proof &amp; complete Global Duo calls!</p>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            <p className="text-indigo-100 text-sm">
-              Earn bonus points for your team! These points bypass the 100 pt individual daily cap.
-            </p>
-
-            <div className="bg-white/10 rounded-xl p-5 border border-white/20">
-              <h3 className="font-bold mb-2 flex justify-between">
-                Global Duo &quot;Walk &amp; Talk&quot;
-                <span className="text-pink-300">+100 pts</span>
-              </h3>
-              <p className="text-xs text-indigo-200 mb-4">Jump on a video call with a cross-border teammate while getting your steps in.</p>
-              {duoLogged ? (
-                <div className="w-full py-2 bg-emerald-500/30 border border-emerald-400/50 rounded-lg text-sm font-bold text-center text-emerald-200">
-                  ✓ Duo Call Logged (+100 pts)
-                </div>
-              ) : (
-                <button
-                  onClick={() => {
-                    const result = logActivity({
-                      date: todayStr,
-                      category: 'WeekendDuo',
-                      points: 100,
-                      isWeekendChallenge: true
-                    });
-                    if (result.success) {
-                      setDuoLogged(true);
-                      setSuccessMsg('Weekend Duo Call logged! +100 bonus pts 🎉');
-                      setTimeout(() => setSuccessMsg(''), 3000);
-                    } else {
-                      setErrorMsg(result.message || 'Error logging duo call');
-                    }
-                  }}
-                  className="w-full py-2 bg-gradient-to-r from-pink-500 to-orange-400 hover:from-pink-600 hover:to-orange-500 rounded-lg text-sm font-bold shadow-lg transition-transform active:scale-[0.98]"
-                >
-                  Log Global Duo Call
-                </button>
-              )}
+        return (
+          <div className="bg-gradient-to-br from-indigo-900 to-purple-900 border border-indigo-500 text-white p-6 md:p-8 rounded-2xl shadow-sm transition-all animate-in fade-in zoom-in duration-500">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <span className="text-amber-400 font-bold text-xs uppercase tracking-widest">{activeWeekendChallenge.weekNo}</span>
+                <h2 className="text-xl font-bold flex items-center gap-2 text-white mt-1">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                  </svg>
+                  {activeWeekendChallenge.name}
+                </h2>
+              </div>
+              <span className="bg-gradient-to-r from-pink-500 to-orange-400 text-xs font-bold px-3 py-1 rounded-full text-white animate-pulse shadow-lg whitespace-nowrap">
+                ACTIVE NOW
+              </span>
             </div>
 
-            <div className="bg-white/10 rounded-xl p-5 border border-white/20">
-              <h3 className="font-bold mb-2 flex justify-between">
-                Upload Photo Proof
-                <span className="text-cyan-300">+50 pts</span>
-              </h3>
-              <p className="text-xs text-indigo-200 mb-4">Share a selfie at a landmark while completing your daily activity.</p>
-              {photoLogged ? (
-                <div className="w-full py-2 bg-emerald-500/30 border border-emerald-400/50 rounded-lg text-sm font-bold text-center text-emerald-200">
-                  ✓ Photo Proof Logged (+50 pts)
-                </div>
-              ) : (
-                <label className="block w-full text-center py-2 border-2 border-dashed border-indigo-300 hover:border-white hover:bg-white/5 rounded-lg text-sm font-bold cursor-pointer transition-colors">
-                  <span>Choose Photo...</span>
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept="image/*"
-                    onChange={() => {
-                      const result = logActivity({
-                        date: todayStr,
-                        category: 'WeekendPhoto',
-                        points: 50,
-                        isWeekendChallenge: true
-                      });
-                      if (result.success) {
-                        setPhotoLogged(true);
-                        setSuccessMsg('Photo Proof logged! +50 bonus pts 📸');
-                        setTimeout(() => setSuccessMsg(''), 3000);
-                      } else {
-                        setErrorMsg(result.message || 'Error logging photo proof');
-                      }
-                    }}
-                  />
-                </label>
-              )}
+            <div className="space-y-4 text-indigo-100">
+              <p className="text-sm bg-white/10 p-4 rounded-xl border border-white/20 leading-relaxed shadow-inner">
+                {activeWeekendChallenge.description}
+              </p>
+              <div className="inline-flex items-center gap-2 bg-emerald-500/20 text-emerald-300 px-3 py-1.5 rounded-lg border border-emerald-400/30 font-bold text-sm shadow-sm">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {activeWeekendChallenge.bonusPointsDesc}
+              </div>
             </div>
           </div>
-        )}
-      </div>
+        );
+      })()}
 
       {/* ═══════════════════════════════════════════════
           ACTIVITY HISTORY — compact table layout
@@ -439,10 +391,8 @@ export default function DashboardPage() {
             <p className="text-sm">No activities logged yet. Start by logging your first activity above!</p>
           </div>
         ) : (() => {
-          // Determine which regular categories have been used
-          const regularCats = ACTIVITY_CATEGORIES.filter(c => !c.id.startsWith('Weekend'));
-          const usedCatIds = new Set(allMyActivities.map(a => a.category));
-          const activeCats = regularCats.filter(c => usedCatIds.has(c.id));
+          // Determine which regular categories to show (we want to show all including Sports)
+          const activeCats = ACTIVITY_CATEGORIES;
           const hasWeekendBonus = allMyActivities.some(a => a.isWeekendChallenge);
 
           return (
@@ -459,7 +409,7 @@ export default function DashboardPage() {
                           <span className="text-base">{cat.icon}</span>
                           <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{cat.name}</span>
                           <span className={`text-[9px] font-bold text-white px-1.5 py-0.5 rounded-full ${cat.color}`}>
-                            {cat.ptsPerSlot}/{cat.slotMins}m
+                            {cat.isAchievement ? `${cat.ptsPerSlot}/act` : `${cat.ptsPerSlot}/${cat.slotMins}m`}
                           </span>
                         </div>
                       </th>

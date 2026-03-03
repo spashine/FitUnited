@@ -1,6 +1,7 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppContext } from '@/hooks/useAppContext';
 
@@ -17,18 +18,25 @@ export default function TeamsPage() {
         approveJoinRequest,
         rejectJoinRequest,
         transferCaptain,
-        removeMember
+        removeMember,
+        updateTeam
     } = useAppContext();
 
     const [newTeamName, setNewTeamName] = useState('');
+    const [newTeamLogo, setNewTeamLogo] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
     const [successMsg, setSuccessMsg] = useState('');
 
+    const [isEditingTeam, setIsEditingTeam] = useState(false);
+    const [editTeamName, setEditTeamName] = useState('');
+    const [editTeamLogo, setEditTeamLogo] = useState('');
+
     // Protect route
-    if (!currentUser) {
-        if (typeof window !== 'undefined') router.push('/');
-        return null;
-    }
+    useEffect(() => {
+        if (!currentUser) router.push('/');
+    }, [currentUser, router]);
+
+    if (!currentUser) return null;
 
     const userTeam = currentUser.teamId ? teams.find(t => t.id === currentUser.teamId) : null;
     const isCaptain = userTeam?.captainId === currentUser.id;
@@ -36,11 +44,27 @@ export default function TeamsPage() {
     const handleCreateTeam = (e: React.FormEvent) => {
         e.preventDefault();
         if (!newTeamName.trim()) return;
-        createTeam(newTeamName.trim());
+        createTeam(newTeamName.trim(), newTeamLogo);
         setNewTeamName('');
+        setNewTeamLogo('');
         setErrorMsg('');
         setSuccessMsg('Team created successfully. You are now the Captain!');
         setTimeout(() => setSuccessMsg(''), 3000);
+    };
+
+    const handleUpdateTeam = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!userTeam || !editTeamName.trim()) return;
+        const result = updateTeam(userTeam.id, { name: editTeamName.trim(), brandImageUrl: editTeamLogo });
+        if (!result.success) {
+            setErrorMsg(result.message || 'Error updating team');
+            setSuccessMsg('');
+        } else {
+            setIsEditingTeam(false);
+            setErrorMsg('');
+            setSuccessMsg('Team updated successfully!');
+            setTimeout(() => setSuccessMsg(''), 3000);
+        }
     };
 
     const handleJoinTeam = (teamId: string) => {
@@ -418,13 +442,81 @@ export default function TeamsPage() {
                     <div className="grid md:grid-cols-3 gap-8">
                         <div className="md:col-span-2 space-y-6">
                             <div className="bg-white rounded-2xl shadow-sm border border-indigo-100 overflow-hidden">
-                                <div className="bg-indigo-600 px-6 py-4 flex justify-between items-center text-white">
-                                    <h2 className="text-xl font-bold">{userTeam.name}</h2>
-                                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${userTeam.members.length >= 5 ? 'bg-red-500/80' : 'bg-indigo-500/50'}`}>
-                                        {userTeam.members.length}/5 Members
-                                    </span>
-                                </div>
-
+                                {isEditingTeam && isCaptain ? (
+                                    <div className="bg-indigo-50 px-6 py-4 border-b border-indigo-100">
+                                        <form onSubmit={handleUpdateTeam} className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-700 mb-1">Team Name</label>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    value={editTeamName}
+                                                    onChange={(e) => setEditTeamName(e.target.value)}
+                                                    className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-700 mb-1">Team Logo</label>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (!file) return;
+                                                        if (file.size > 2 * 1024 * 1024) return alert("max 2MB");
+                                                        const reader = new FileReader();
+                                                        reader.onloadend = () => setEditTeamLogo(reader.result as string);
+                                                        reader.readAsDataURL(file);
+                                                    }}
+                                                />
+                                                {editTeamLogo && (
+                                                    <div className="mt-2 h-16 w-16 rounded-lg overflow-hidden border border-slate-200 shadow-sm bg-white">
+                                                        <img src={editTeamLogo} alt="Team logo" className="w-full h-full object-cover" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex gap-2 justify-end">
+                                                <button type="button" onClick={() => setIsEditingTeam(false)} className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-bold hover:bg-slate-300 transition-colors">Cancel</button>
+                                                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors">Save</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                ) : (
+                                    <div className="bg-indigo-600 px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center text-white gap-4">
+                                        <div className="flex items-center gap-4">
+                                            {userTeam.brandImageUrl ? (
+                                                <div className="h-16 w-16 rounded-xl overflow-hidden bg-white border-2 border-indigo-400 shadow-sm shrink-0">
+                                                    <img src={userTeam.brandImageUrl} alt="Team Logo" className="h-full w-full object-cover" />
+                                                </div>
+                                            ) : (
+                                                <div className="h-16 w-16 rounded-xl bg-indigo-500/50 border border-indigo-400 flex items-center justify-center shrink-0">
+                                                    <span className="text-2xl font-black text-indigo-100">{userTeam.name.charAt(0).toUpperCase()}</span>
+                                                </div>
+                                            )}
+                                            <div>
+                                                <h2 className="text-xl font-bold flex items-center gap-2">
+                                                    {userTeam.name}
+                                                    {isCaptain && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditTeamName(userTeam.name);
+                                                                setEditTeamLogo(userTeam.brandImageUrl || '');
+                                                                setIsEditingTeam(true);
+                                                            }}
+                                                            className="text-xs bg-indigo-500 hover:bg-indigo-400 text-white px-2 py-1 rounded"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                    )}
+                                                </h2>
+                                                <span className={`inline-block mt-2 px-3 py-0.5 rounded-full text-xs font-semibold ${userTeam.members.length >= 5 ? 'bg-red-500/80' : 'bg-indigo-500/50'}`}>
+                                                    {userTeam.members.length}/5 Members
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="p-6">
                                     <div className="mb-6">
                                         <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Diversity Status</h3>
@@ -583,6 +675,32 @@ export default function TeamsPage() {
                                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                                 />
                             </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Team Logo (Optional)</label>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-lg border border-slate-300"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        if (file.size > 2 * 1024 * 1024) {
+                                            alert("Image too large (max 2MB)");
+                                            return;
+                                        }
+                                        const reader = new FileReader();
+                                        reader.onloadend = () => {
+                                            setNewTeamLogo(reader.result as string);
+                                        };
+                                        reader.readAsDataURL(file);
+                                    }}
+                                />
+                                {newTeamLogo && (
+                                    <div className="mt-2 h-16 w-16 rounded-lg overflow-hidden border border-slate-200 shadow-sm">
+                                        <img src={newTeamLogo} alt="Team logo preview" className="w-full h-full object-cover" />
+                                    </div>
+                                )}
+                            </div>
                             <button
                                 type="submit"
                                 className="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 transition-transform active:scale-[0.98] shadow-md"
@@ -610,8 +728,17 @@ export default function TeamsPage() {
                                     return (
                                         <div key={team.id} className="border border-slate-200 rounded-xl p-4 hover:border-indigo-300 transition-colors bg-slate-50 hover:bg-white flex flex-col justify-between h-full gap-4">
                                             <div>
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <h3 className="font-bold text-slate-900">{team.name}</h3>
+                                                <div className="flex justify-between items-start mb-2 gap-3">
+                                                    <div className="flex items-center gap-3">
+                                                        {team.brandImageUrl ? (
+                                                            <img src={team.brandImageUrl} alt="Logo" className="w-10 h-10 rounded-lg object-cover bg-white shrink-0 border border-slate-200" />
+                                                        ) : (
+                                                            <div className="w-10 h-10 bg-indigo-100 text-indigo-500 font-bold rounded-lg flex items-center justify-center shrink-0 border border-indigo-200">
+                                                                {team.name.charAt(0).toUpperCase()}
+                                                            </div>
+                                                        )}
+                                                        <h3 className="font-bold text-slate-900">{team.name}</h3>
+                                                    </div>
                                                     <span className={`text-xs font-bold px-2 py-1 rounded-full ${isFull ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}>
                                                         {members.length}/5
                                                     </span>
@@ -657,7 +784,8 @@ export default function TeamsPage() {
                         )}
                     </div>
                 </div>
-            )}
-        </div>
+            )
+            }
+        </div >
     );
 }
