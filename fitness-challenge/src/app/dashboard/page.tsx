@@ -23,6 +23,14 @@ function calculatePoints(categoryId: string, durationMins: number): number {
   return slots * cat.ptsPerSlot;
 }
 
+/** Calculate bonus points for step count milestones */
+function calculateStepBonusPoints(stepCount: number): number {
+  if (stepCount >= 20000) return 20;
+  if (stepCount >= 15000) return 15;
+  if (stepCount >= 10000) return 10;
+  return 0;
+}
+
 /** Get Monday of the week containing `d` */
 function getWeekMonday(d: Date): Date {
   const copy = new Date(d);
@@ -67,6 +75,7 @@ export default function DashboardPage() {
   const [date, setDate] = useState(todayStr);
   const [selectedCategory, setSelectedCategory] = useState<ActivityLog['category']>('Movement');
   const [duration, setDuration] = useState<number>(30);
+  const [stepCountStr, setStepCountStr] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -84,6 +93,10 @@ export default function DashboardPage() {
   const estimatedPoints = calculatePoints(selectedCategory, duration);
   const remainingCap = Math.max(0, 100 - selectedDatePoints);
   const effectivePoints = Math.min(estimatedPoints, remainingCap);
+
+  // Parse step count for bonus calculation
+  const parsedStepCount = parseInt(stepCountStr) || 0;
+  const stepBonusPoints = calculateStepBonusPoints(parsedStepCount);
 
   // ────── All user activities sorted by date (most recent first) ──────
   const allMyActivities = useMemo(() => {
@@ -141,11 +154,16 @@ export default function DashboardPage() {
       return;
     }
 
+    // Build activity data, including optional step count and bonus
+    const stepVal = parseInt(stepCountStr) || 0;
+    const bonus = calculateStepBonusPoints(stepVal);
+
     const result = logActivity({
       date,
       category: selectedCategory,
       points: pts,
       ...(isAchievementBased ? {} : { duration }),
+      ...(stepVal > 0 ? { stepCount: stepVal, bonusPoints: bonus } : {}),
     });
 
     if (!result.success) {
@@ -155,9 +173,12 @@ export default function DashboardPage() {
       const logLabel = isAchievementBased
         ? `${catDef?.name} achievement`
         : `${duration} mins of ${catDef?.name}`;
-      setSuccessMsg(`Logged ${logLabel} for ${fmtDateFriendly(date)} → +${Math.min(pts, remainingCap)} pts!`);
+      const bonusMsg = bonus > 0 ? ` (+ ${bonus} step bonus! 🎉)` : '';
+      const stepsMsg = stepVal > 0 ? ` | ${stepVal.toLocaleString()} steps` : '';
+      setSuccessMsg(`Logged ${logLabel} for ${fmtDateFriendly(date)} → +${Math.min(pts, remainingCap)} pts${stepsMsg}${bonusMsg}`);
       if (!isAchievementBased) setDuration(30);
-      setTimeout(() => setSuccessMsg(''), 4000);
+      setStepCountStr('');
+      setTimeout(() => setSuccessMsg(''), 5000);
     }
   };
 
@@ -316,6 +337,9 @@ export default function DashboardPage() {
             <div className="flex items-center gap-2 ml-auto">
               <div className="text-right leading-tight">
                 <span className="text-sm font-black text-indigo-600">+{estimatedPoints} pts</span>
+                {stepBonusPoints > 0 && (
+                  <div className="text-[10px] text-orange-500 font-bold">+{stepBonusPoints} step bonus</div>
+                )}
                 {estimatedPoints > remainingCap && remainingCap > 0 && (
                   <div className="text-[9px] text-amber-500 font-semibold">cap: +{effectivePoints}</div>
                 )}
@@ -327,6 +351,38 @@ export default function DashboardPage() {
               >
                 {selectedDatePoints >= 100 ? 'Cap Reached' : isAchievementBased ? 'Log Achievement' : `Log ${formatDuration(duration)}`}
               </button>
+            </div>
+          </div>
+
+          {/* Row 4: Optional Step Count */}
+          <div className="flex items-center gap-2 pt-1 border-t border-slate-100 mt-1">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider w-10 shrink-0">Steps</span>
+            <div className="flex items-center gap-2 flex-wrap flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-base">👟</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="99999"
+                  placeholder="e.g. 10000"
+                  value={stepCountStr}
+                  onChange={(e) => setStepCountStr(e.target.value)}
+                  className="w-24 px-2.5 py-1.5 border border-slate-200 rounded-md text-sm font-medium text-slate-700 focus:ring-1 focus:ring-orange-400 outline-none placeholder:text-slate-300"
+                />
+                <span className="text-[10px] text-slate-400">steps (optional)</span>
+              </div>
+              {/* Bonus threshold indicators */}
+              <div className="flex gap-1.5 items-center">
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${parsedStepCount >= 10000 ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400'}`}>
+                  10K → +10
+                </span>
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${parsedStepCount >= 15000 ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400'}`}>
+                  15K → +15
+                </span>
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${parsedStepCount >= 20000 ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400'}`}>
+                  20K → +20
+                </span>
+              </div>
             </div>
           </div>
         </form>
@@ -391,9 +447,10 @@ export default function DashboardPage() {
             <p className="text-sm">No activities logged yet. Start by logging your first activity above!</p>
           </div>
         ) : (() => {
-          // Determine which regular categories to show (we want to show all including Sports)
+          // Determine which regular categories to show
           const activeCats = ACTIVITY_CATEGORIES;
           const hasWeekendBonus = allMyActivities.some(a => a.isWeekendChallenge);
+          const hasSteps = allMyActivities.some(a => (a.stepCount || 0) > 0);
 
           return (
             <div className="overflow-x-auto -mx-2">
@@ -414,6 +471,14 @@ export default function DashboardPage() {
                         </div>
                       </th>
                     ))}
+                    {hasSteps && (
+                      <th className="text-center px-2 py-2 border-b-2 border-slate-200">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="text-base">👟</span>
+                          <span className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">Steps</span>
+                        </div>
+                      </th>
+                    )}
                     {hasWeekendBonus && (
                       <th className="text-center px-2 py-2 border-b-2 border-slate-200">
                         <div className="flex flex-col items-center gap-0.5">
@@ -433,8 +498,10 @@ export default function DashboardPage() {
                 <tbody>
                   {groupedByDate.map(([dateKey, logs], idx) => {
                     const dayTotalRegular = logs.filter(l => !l.isWeekendChallenge).reduce((s, l) => s + l.points, 0);
+                    const dayStepBonus = logs.reduce((s, l) => s + (l.bonusPoints || 0), 0);
                     const dayTotalBonus = logs.filter(l => l.isWeekendChallenge).reduce((s, l) => s + l.points, 0);
                     const dayDuration = logs.filter(l => !l.isWeekendChallenge).reduce((s, l) => s + (l.duration || 0), 0);
+                    const daySteps = logs.reduce((s, l) => s + (l.stepCount || 0), 0);
                     const isEven = idx % 2 === 0;
 
                     return (
@@ -469,6 +536,22 @@ export default function DashboardPage() {
                           );
                         })}
 
+                        {/* Steps cell */}
+                        {hasSteps && (
+                          <td className="text-center px-2 py-2.5 border-b border-slate-100">
+                            {daySteps > 0 ? (
+                              <div>
+                                <div className="font-bold text-orange-600 text-sm">{daySteps.toLocaleString()}</div>
+                                {dayStepBonus > 0 && (
+                                  <div className="text-[9px] font-bold text-orange-500 bg-orange-50 px-1.5 rounded-full inline-block mt-0.5">+{dayStepBonus}</div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-200">—</span>
+                            )}
+                          </td>
+                        )}
+
                         {/* Weekend bonus cell */}
                         {hasWeekendBonus && (
                           <td className="text-center px-2 py-2.5 border-b border-slate-100">
@@ -489,7 +572,10 @@ export default function DashboardPage() {
 
                         {/* Total cell */}
                         <td className="text-center px-3 py-2.5 border-b border-slate-100 bg-indigo-50/30">
-                          <div className="font-black text-indigo-700 text-sm">{dayTotalRegular + dayTotalBonus}</div>
+                          <div className="font-black text-indigo-700 text-sm">{dayTotalRegular + dayStepBonus + dayTotalBonus}</div>
+                          {dayStepBonus > 0 && (
+                            <div className="text-[9px] font-bold text-orange-500">+{dayStepBonus} step bonus</div>
+                          )}
                           {dayTotalRegular >= 100 && (
                             <div className="text-[9px] font-black text-emerald-500">MAX</div>
                           )}

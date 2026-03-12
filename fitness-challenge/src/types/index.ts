@@ -46,6 +46,8 @@ export interface ActivityLog {
   category: 'Sports' | 'Movement' | 'Power' | 'Flow' | 'Zen' | 'WeekendDuo' | 'WeekendPhoto';
   points: number;
   duration?: number; // duration in minutes (for regular activities)
+  stepCount?: number; // step count for Steps category
+  bonusPoints?: number; // bonus points for step count milestones
   isWeekendChallenge?: boolean; // true for weekend bonus activities — bypass daily cap
 }
 

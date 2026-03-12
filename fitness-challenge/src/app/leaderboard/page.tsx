@@ -108,8 +108,8 @@ export default function LeaderboardPage() {
 
     // Points for a set of user IDs on a specific date
     const getGroupPointsOnDate = (userIds: string[], date: string, teamId: string | boolean = false) => {
-        let sum = activities.filter(a => userIds.includes(a.userId) && a.date === date)
-            .reduce((s, a) => s + a.points, 0);
+        const dateActivities = activities.filter(a => userIds.includes(a.userId) && a.date === date);
+        let sum = dateActivities.reduce((s, a) => s + a.points + (a.bonusPoints || 0), 0);
 
         if (teamId && userIds.length > 0) {
             // Check if every user in the team logged >0 points on this date
