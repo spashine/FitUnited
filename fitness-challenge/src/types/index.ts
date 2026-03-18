@@ -85,3 +85,17 @@ export interface Post {
   likes: string[]; // user IDs who liked the post
   comments: Comment[];
 }
+
+export type AwardWeek = 'Week 1' | 'Week 2' | 'Week 3' | 'Overall';
+
+export interface Award {
+  id: string;
+  week: AwardWeek;
+  category: string;       // e.g. 'Top Team', 'Most Active Individual', 'Step Champion'
+  winnerId: string;       // team or user ID
+  winnerType: 'team' | 'individual';
+  winnerName: string;
+  description?: string;   // optional blurb
+  points?: number;        // points scored
+  announcedAt: string;    // ISO date string when admin announced
+}

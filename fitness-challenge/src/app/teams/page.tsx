@@ -69,7 +69,7 @@ export default function TeamsPage() {
 
     const handleJoinTeam = (teamId: string) => {
         const team = teams.find(t => t.id === teamId);
-        if (team && (team.members || []).length >= 5) {
+        if (team && (team.members || []).length >= 4) {
             setErrorMsg('Team has reached maximum capacity.');
             setSuccessMsg('');
             return;
@@ -510,8 +510,8 @@ export default function TeamsPage() {
                                                         </button>
                                                     )}
                                                 </h2>
-                                                <span className={`inline-block mt-2 px-3 py-0.5 rounded-full text-xs font-semibold ${userTeam.members.length >= 5 ? 'bg-red-500/80' : 'bg-indigo-500/50'}`}>
-                                                    {userTeam.members.length}/5 Members
+                                                <span className={`inline-block mt-2 px-3 py-0.5 rounded-full text-xs font-semibold ${userTeam.members.length >= 4 ? 'bg-red-500/80' : 'bg-indigo-500/50'}`}>
+                                                    {userTeam.members.length}/4 Members
                                                 </span>
                                             </div>
                                         </div>
@@ -554,11 +554,11 @@ export default function TeamsPage() {
                                         )}
                                     </div>
 
-                                    {userTeam.members.length >= 5 && (
+                                    {userTeam.members.length >= 4 && (
                                         <div className="mb-6 p-3 bg-orange-50 border border-orange-200 rounded-lg">
                                             <p className="text-orange-700 text-sm font-semibold flex items-center gap-2">
                                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                Team has reached maximum capacity (5/5 members).
+                                                Team has reached maximum capacity (4/4 members).
                                             </p>
                                         </div>
                                     )}
@@ -613,7 +613,7 @@ export default function TeamsPage() {
                                                     const u = users.find(user => user.id === reqId);
                                                     if (!u) return null;
 
-                                                    const teamIsFull = userTeam.members.length >= 5;
+                                                    const teamIsFull = userTeam.members.length >= 4;
 
                                                     return (
                                                         <li key={u.id} className="p-4 bg-white">
@@ -661,7 +661,7 @@ export default function TeamsPage() {
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                         <h2 className="text-xl font-bold text-slate-900 mb-4">Create a Team</h2>
                         <p className="text-slate-500 text-sm mb-6">
-                            Start a new team as Captain and invite colleagues. Remember the diversity rule: you&apos;ll need members from at least two regions and two work streams. Maximum 5 members per team.
+                            Start a new team as Captain and invite colleagues. Remember the diversity rule: you&apos;ll need members from at least two regions and two work streams. Maximum 4 members per team.
                         </p>
                         <form onSubmit={handleCreateTeam} className="space-y-4">
                             <div>
@@ -723,7 +723,7 @@ export default function TeamsPage() {
                                     const diversity = checkDiversity(members);
                                     const isPending = pending.includes(currentUser.id);
                                     const captain = users.find(u => u.id === team.captainId);
-                                    const isFull = members.length >= 5;
+                                    const isFull = members.length >= 4;
 
                                     return (
                                         <div key={team.id} className="border border-slate-200 rounded-xl p-4 hover:border-indigo-300 transition-colors bg-slate-50 hover:bg-white flex flex-col justify-between h-full gap-4">
@@ -740,7 +740,7 @@ export default function TeamsPage() {
                                                         <h3 className="font-bold text-slate-900">{team.name}</h3>
                                                     </div>
                                                     <span className={`text-xs font-bold px-2 py-1 rounded-full ${isFull ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}>
-                                                        {members.length}/5
+                                                        {members.length}/4
                                                     </span>
                                                 </div>
                                                 {captain && (
@@ -774,7 +774,7 @@ export default function TeamsPage() {
                                                 {isPending
                                                     ? 'Pending Approval'
                                                     : isFull
-                                                        ? 'Team Full (Max 5)'
+                                                        ? 'Team Full (Max 4)'
                                                         : 'Request to Join'}
                                             </button>
                                         </div>

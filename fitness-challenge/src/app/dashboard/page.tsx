@@ -450,7 +450,8 @@ export default function DashboardPage() {
           // Determine which regular categories to show
           const activeCats = ACTIVITY_CATEGORIES;
           const hasWeekendBonus = allMyActivities.some(a => a.isWeekendChallenge);
-          const hasSteps = allMyActivities.some(a => (a.stepCount || 0) > 0);
+          const hasStepBonus = allMyActivities.some(a => (a.bonusPoints || 0) > 0);
+          const hasBonusColumn = hasWeekendBonus || hasStepBonus;
 
           return (
             <div className="overflow-x-auto -mx-2">
@@ -471,15 +472,7 @@ export default function DashboardPage() {
                         </div>
                       </th>
                     ))}
-                    {hasSteps && (
-                      <th className="text-center px-2 py-2 border-b-2 border-slate-200">
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className="text-base">👟</span>
-                          <span className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">Steps</span>
-                        </div>
-                      </th>
-                    )}
-                    {hasWeekendBonus && (
+                    {hasBonusColumn && (
                       <th className="text-center px-2 py-2 border-b-2 border-slate-200">
                         <div className="flex flex-col items-center gap-0.5">
                           <span className="text-base">⭐</span>
@@ -499,7 +492,8 @@ export default function DashboardPage() {
                   {groupedByDate.map(([dateKey, logs], idx) => {
                     const dayTotalRegular = logs.filter(l => !l.isWeekendChallenge).reduce((s, l) => s + l.points, 0);
                     const dayStepBonus = logs.reduce((s, l) => s + (l.bonusPoints || 0), 0);
-                    const dayTotalBonus = logs.filter(l => l.isWeekendChallenge).reduce((s, l) => s + l.points, 0);
+                    const dayTotalWeekendBonus = logs.filter(l => l.isWeekendChallenge).reduce((s, l) => s + l.points, 0);
+                    const dayTotalAllBonus = dayStepBonus + dayTotalWeekendBonus;
                     const dayDuration = logs.filter(l => !l.isWeekendChallenge).reduce((s, l) => s + (l.duration || 0), 0);
                     const daySteps = logs.reduce((s, l) => s + (l.stepCount || 0), 0);
                     const isEven = idx % 2 === 0;
@@ -536,29 +530,21 @@ export default function DashboardPage() {
                           );
                         })}
 
-                        {/* Steps cell */}
-                        {hasSteps && (
+                        {/* Bonus cell — combines weekend bonus + step bonus */}
+                        {hasBonusColumn && (
                           <td className="text-center px-2 py-2.5 border-b border-slate-100">
-                            {daySteps > 0 ? (
+                            {dayTotalAllBonus > 0 ? (
                               <div>
-                                <div className="font-bold text-orange-600 text-sm">{daySteps.toLocaleString()}</div>
+                                <span className="font-black text-purple-600 text-sm bg-purple-50 px-2 py-0.5 rounded">
+                                  +{dayTotalAllBonus}
+                                </span>
                                 {dayStepBonus > 0 && (
-                                  <div className="text-[9px] font-bold text-orange-500 bg-orange-50 px-1.5 rounded-full inline-block mt-0.5">+{dayStepBonus}</div>
+                                  <div className="text-[9px] font-bold text-orange-500 mt-0.5">👟 {daySteps.toLocaleString()} steps</div>
+                                )}
+                                {dayTotalWeekendBonus > 0 && dayStepBonus > 0 && (
+                                  <div className="text-[9px] font-bold text-purple-500 mt-0.5">⭐ +{dayTotalWeekendBonus} wknd</div>
                                 )}
                               </div>
-                            ) : (
-                              <span className="text-slate-200">—</span>
-                            )}
-                          </td>
-                        )}
-
-                        {/* Weekend bonus cell */}
-                        {hasWeekendBonus && (
-                          <td className="text-center px-2 py-2.5 border-b border-slate-100">
-                            {dayTotalBonus > 0 ? (
-                              <span className="font-black text-purple-600 text-sm bg-purple-50 px-2 py-0.5 rounded">
-                                +{dayTotalBonus}
-                              </span>
                             ) : (
                               <span className="text-slate-200">—</span>
                             )}
@@ -572,10 +558,7 @@ export default function DashboardPage() {
 
                         {/* Total cell */}
                         <td className="text-center px-3 py-2.5 border-b border-slate-100 bg-indigo-50/30">
-                          <div className="font-black text-indigo-700 text-sm">{dayTotalRegular + dayStepBonus + dayTotalBonus}</div>
-                          {dayStepBonus > 0 && (
-                            <div className="text-[9px] font-bold text-orange-500">+{dayStepBonus} step bonus</div>
-                          )}
+                          <div className="font-black text-indigo-700 text-sm">{dayTotalRegular + dayTotalAllBonus}</div>
                           {dayTotalRegular >= 100 && (
                             <div className="text-[9px] font-black text-emerald-500">MAX</div>
                           )}

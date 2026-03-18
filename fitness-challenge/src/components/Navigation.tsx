@@ -15,10 +15,14 @@ export default function Navigation() {
             { href: '/dashboard', label: 'My Activity' },
             { href: '/teams', label: 'My Team' },
             { href: '/all-teams', label: 'All Teams' },
-            { href: '/leaderboard', label: 'Leaderboard' }
+            { href: '/leaderboard', label: 'Leaderboard' },
+            { href: '/hall-of-fame', label: 'Hall of Fame' },
+            { href: '/social-wall', label: 'Social Wall' },
         ] : []),
-        { href: '/social-wall', label: 'Social Wall' },
-        ...(currentUser?.role === 'admin' ? [{ href: '/admin/weekend', label: 'Weekend Challenges' }] : []),
+        ...(currentUser?.role === 'admin' ? [
+            { href: '/admin/weekend', label: 'Weekend Challenges' },
+            { href: '/admin/awards', label: 'Manage Awards' },
+        ] : []),
     ];
 
     return (

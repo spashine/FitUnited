@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, Team, ActivityLog, WeekendChallenge, TeamBonusPoint, Post, Comment } from '../types';
+import { User, Team, ActivityLog, WeekendChallenge, TeamBonusPoint, Post, Comment, Award } from '../types';
 import { useLocalStorage, generateMockId } from './useLocalStorage';
 
 interface AppState {
@@ -13,6 +13,7 @@ interface AppState {
     weekendChallenges: WeekendChallenge[];
     teamBonusPoints: TeamBonusPoint[];
     posts: Post[];
+    awards: Award[];
 }
 
 interface ResetToken {
@@ -48,6 +49,8 @@ interface AppContextType extends AppState {
     createPost: (data: Omit<Post, 'id' | 'createdAt' | 'likes' | 'comments'>) => void;
     addComment: (postId: string, content: string) => void;
     toggleLikePost: (postId: string) => void;
+    addAward: (data: Omit<Award, 'id'>) => void;
+    removeAward: (id: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -113,7 +116,7 @@ const initialUsers: User[] = [
         "password": "password",
         "location": "India",
         "workStream": "Risk",
-        "teamId": "t1",
+        "teamId": null,
         "role": "user"
     },
     {
@@ -163,7 +166,7 @@ const initialUsers: User[] = [
         "password": "password",
         "location": "India",
         "workStream": "Risk",
-        "teamId": "t2",
+        "teamId": null,
         "role": "user"
     },
     {
@@ -213,7 +216,7 @@ const initialUsers: User[] = [
         "password": "password",
         "location": "US",
         "workStream": "TMO",
-        "teamId": "t3",
+        "teamId": null,
         "role": "user"
     },
     {
@@ -263,7 +266,7 @@ const initialUsers: User[] = [
         "password": "password",
         "location": "Mexico",
         "workStream": "Contact Center",
-        "teamId": "t4",
+        "teamId": null,
         "role": "user"
     },
     {
@@ -313,7 +316,7 @@ const initialUsers: User[] = [
         "password": "password",
         "location": "Mexico",
         "workStream": "Tax",
-        "teamId": "t5",
+        "teamId": null,
         "role": "user"
     },
     {
@@ -363,7 +366,7 @@ const initialUsers: User[] = [
         "password": "password",
         "location": "US",
         "workStream": "Data",
-        "teamId": "t6",
+        "teamId": null,
         "role": "user"
     }
 ];
@@ -376,8 +379,7 @@ const initialTeams: Team[] = [
             "u_sandeep",
             "u_1",
             "u_2",
-            "u_3",
-            "u_4"
+            "u_3"
         ],
         "captainId": "u_sandeep",
         "pendingRequests": []
@@ -389,8 +391,7 @@ const initialTeams: Team[] = [
             "u_5",
             "u_6",
             "u_7",
-            "u_8",
-            "u_9"
+            "u_8"
         ],
         "captainId": "u_5",
         "pendingRequests": []
@@ -402,8 +403,7 @@ const initialTeams: Team[] = [
             "u_10",
             "u_11",
             "u_12",
-            "u_13",
-            "u_14"
+            "u_13"
         ],
         "captainId": "u_10",
         "pendingRequests": []
@@ -415,8 +415,7 @@ const initialTeams: Team[] = [
             "u_15",
             "u_16",
             "u_17",
-            "u_18",
-            "u_19"
+            "u_18"
         ],
         "captainId": "u_15",
         "pendingRequests": []
@@ -428,8 +427,7 @@ const initialTeams: Team[] = [
             "u_20",
             "u_21",
             "u_22",
-            "u_23",
-            "u_24"
+            "u_23"
         ],
         "captainId": "u_20",
         "pendingRequests": []
@@ -441,8 +439,7 @@ const initialTeams: Team[] = [
             "u_25",
             "u_26",
             "u_27",
-            "u_28",
-            "u_29"
+            "u_28"
         ],
         "captainId": "u_25",
         "pendingRequests": []
@@ -14196,6 +14193,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const [weekendChallenges, setWeekendChallenges] = useLocalStorage<WeekendChallenge[]>('fit_weekend_chals_v2', initialWeekendChallenges);
     const [teamBonusPoints, setTeamBonusPoints] = useLocalStorage<TeamBonusPoint[]>('fit_team_bonus_v1', []);
     const [posts, setPosts] = useLocalStorage<Post[]>('fit_posts_v2', initialPosts);
+    const [awards, setAwards] = useLocalStorage<Award[]>('fit_awards_v1', []);
     const [resetTokens, setResetTokens] = useLocalStorage<ResetToken[]>('fitness_reset_tokens', []);
 
     // Need this to prevent hydration mismatch with localStorage
@@ -14352,7 +14350,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         const team = teams.find(t => t.id === teamId);
         if (!team) return { success: false, message: 'Team not found' };
-        if (team.members.length >= 5) return { success: false, message: 'Team has reached maximum capacity.' };
+        if (team.members.length >= 4) return { success: false, message: 'Team has reached maximum capacity.' };
         if (team.pendingRequests.includes(currentUser.id)) return { success: false, message: 'Request already pending' };
 
         // Instead of strict enforcement, we allow the request and validate on approve.
@@ -14369,7 +14367,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const team = teams.find(t => t.id === teamId);
         if (!team) return { success: false, message: 'Team not found' };
         if (team.captainId !== currentUser.id) return { success: false, message: 'Only captain can approve' };
-        if (team.members.length >= 5) return { success: false, message: 'Team has reached maximum capacity.' };
+        if (team.members.length >= 4) return { success: false, message: 'Team has reached maximum capacity.' };
 
         // Update team
         const updatedMembers = [...team.members, userId];
@@ -14568,19 +14566,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }));
     };
 
+    const addAward = (data: Omit<Award, 'id'>) => {
+        setAwards(prev => [...prev, { ...data, id: generateMockId() }]);
+    };
+
+    const removeAward = (id: string) => {
+        setAwards(prev => prev.filter(a => a.id !== id));
+    };
+
     if (!isMounted) return null; // Avoid SSR hydration mismatch
 
     return (
         <AppContext.Provider value={{
             currentUser, users, teams, activities, isWeekendChallengePublished,
-            weekendChallenges, teamBonusPoints, posts,
+            weekendChallenges, teamBonusPoints, posts, awards,
             loginUser, registerUser, logoutUser, requestPasswordReset, resetPassword,
             updateProfile, changePassword,
             createTeam, updateTeam, requestJoinTeam, leaveTeam,
             approveJoinRequest, rejectJoinRequest, transferCaptain, removeMember, logActivity, toggleWeekendChallenge,
             createWeekendChallenge, updateWeekendChallenge, deleteWeekendChallenge, setWeekendChallengeVisibility,
             awardTeamBonusPoint, removeTeamBonusPoint,
-            createPost, addComment, toggleLikePost
+            createPost, addComment, toggleLikePost,
+            addAward, removeAward
         }}>
             {children}
         </AppContext.Provider>

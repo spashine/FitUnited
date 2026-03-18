@@ -1,16 +1,22 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAppContext } from '../../hooks/useAppContext';
-import Navigation from '../../components/Navigation';
 import { User } from '../../types';
 
 export default function SocialWall() {
+    const router = useRouter();
     const {
         currentUser, users, posts, createPost, toggleLikePost, addComment,
         weekendChallenges
     } = useAppContext();
+
+    // Protect route — redirect if not logged in
+    useEffect(() => {
+        if (!currentUser) router.push('/');
+    }, [currentUser, router]);
 
     const [newPostContent, setNewPostContent] = useState('');
     const [newPostMedia, setNewPostMedia] = useState('');
@@ -80,19 +86,17 @@ export default function SocialWall() {
     // Only published weekend challenges should be taggable
     const activeChallenges = weekendChallenges.filter(c => c.isVisible);
 
+    if (!currentUser) return null;
+
     return (
-        <main className="min-h-screen bg-gray-50 pb-20">
-            <Navigation />
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="mb-8">
+                <h1 className="text-3xl font-bold text-gray-900">Social Wall</h1>
+                <p className="text-gray-600 mt-2">Share your workouts, photos, and cheer for your team!</p>
+            </div>
 
-            <div className="max-w-3xl mx-auto pt-24 px-4 sm:px-6 lg:px-8">
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900">Social Wall</h1>
-                    <p className="text-gray-600 mt-2">Share your workouts, photos, and cheer for your team!</p>
-                </div>
-
-                {/* Create Post Section - Only visible if logged in */}
-                {currentUser ? (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
+                {/* Create Post Section */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
                         <form onSubmit={handleCreatePost}>
                             <textarea
                                 value={newPostContent}
@@ -177,12 +181,7 @@ export default function SocialWall() {
                                 </button>
                             </div>
                         </form>
-                    </div>
-                ) : (
-                    <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6 text-center mb-8">
-                        <p className="text-indigo-800 font-medium">To write a post or join the conversation, please log in with your account.</p>
-                    </div>
-                )}
+                </div>
 
                 {/* Posts Feed */}
                 <div className="space-y-6">
@@ -241,14 +240,9 @@ export default function SocialWall() {
                                     <div className="px-6 py-3 border-y border-gray-100 bg-gray-50 flex items-center space-x-6 text-sm">
                                         <button
                                             onClick={() => {
-                                                if (!currentUser) {
-                                                    alert("Please log in to like posts.");
-                                                    return;
-                                                }
                                                 toggleLikePost(post.id);
                                             }}
                                             className={`flex items-center space-x-1 ${iLiked ? 'text-blue-600 font-medium' : 'text-gray-500 hover:text-gray-700'}`}
-                                            disabled={!currentUser}
                                         >
                                             <svg className="w-5 h-5" fill={iLiked ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.514" />
@@ -292,8 +286,7 @@ export default function SocialWall() {
                                             })}
                                         </div>
 
-                                        {currentUser && (
-                                            <div className="flex flex-col sm:flex-row gap-2 mt-4 pt-4 border-t border-gray-200">
+                                        <div className="flex flex-col sm:flex-row gap-2 mt-4 pt-4 border-t border-gray-200">
                                                 <input
                                                     type="text"
                                                     value={commentTexts[post.id] || ''}
@@ -315,14 +308,12 @@ export default function SocialWall() {
                                                     Comment
                                                 </button>
                                             </div>
-                                        )}
                                     </div>
                                 </div>
                             );
                         })
                     )}
                 </div>
-            </div>
-        </main>
+        </div>
     );
 }

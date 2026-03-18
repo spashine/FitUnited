@@ -83,8 +83,8 @@ export default function AllTeamsPage() {
                                 <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4 text-white">
                                     <div className="flex items-center justify-between">
                                         <h2 className="text-lg font-bold">{team.name}</h2>
-                                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${members.length >= 5 ? 'bg-red-500/80' : 'bg-white/20'}`}>
-                                            {members.length}/5
+                                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${members.length >= 4 ? 'bg-red-500/80' : 'bg-white/20'}`}>
+                                            {members.length}/4
                                         </span>
                                     </div>
                                     {captain && (
