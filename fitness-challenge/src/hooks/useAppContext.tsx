@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Team, ActivityLog, WeekendChallenge, TeamBonusPoint, Post, Comment, Award } from '../types';
 import { useLocalStorage, generateMockId } from './useLocalStorage';
+import { fetchAllData, seedInitialData, logActivityDB, registerUserDB, updateProfileDB, createTeamDB, createPostDB, addCommentDB } from '@/actions/db';
 
 interface AppState {
     currentUser: User | null;
@@ -14198,8 +14199,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // Need this to prevent hydration mismatch with localStorage
     const [isMounted, setIsMounted] = useState(false);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    useEffect(() => setIsMounted(true), []);
+    
+    // FETCH REAL DB DATA ON LOAD
+    useEffect(() => {
+        setIsMounted(true);
+        const initDb = async () => {
+            // First run the seeder quietly in background 
+            // (it safely skips itself if DB has users)
+            await seedInitialData({ initialUsers, initialTeams, initialActivities, initialPosts });
+            
+            // Now pull the real synchronized DB data
+            const dbData = await fetchAllData();
+            if (dbData.users.length > 0) {
+                setUsers(dbData.users);
+                setTeams(dbData.teams);
+                setActivities(dbData.activities);
+                setWeekendChallenges(dbData.weekendChallenges);
+                setTeamBonusPoints(dbData.teamBonusPoints);
+                setPosts(dbData.posts);
+                if (dbData.awards && dbData.awards.length > 0) setAwards(dbData.awards);
+                
+                // Keep the current logged-in user totally synced
+                if (currentUser) {
+                    const freshUser = dbData.users.find((u: User) => u.id === currentUser.id);
+                    if (freshUser) setCurrentUser(freshUser);
+                }
+            }
+        };
+        initDb();
+    }, []);
 
     const loginUser = (name: string, password?: string) => {
         // Match by username field first, then fall back to name (backward compat)
@@ -14241,8 +14269,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
 
         const newUser: User = { ...userData, id: generateMockId(), role: 'user' };
+        
+        // Optimistic UX Update
         setUsers([...users, newUser]);
         setCurrentUser(newUser);
+
+        // Push to SQLite DB seamlessly
+        registerUserDB(userData).then(res => {
+            if (res.success && res.user) {
+                setCurrentUser(res.user as User);
+            }
+        });
+
         return { success: true };
     };
 
@@ -14442,35 +14480,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         } else {
             setTeams(teams.map(t => t.id === prevTeamId ? { ...t, members: newMembers } : t));
         }
-
         return { success: true };
     };
 
-    const logActivity = (activityData: Omit<ActivityLog, 'id' | 'userId'>) => {
+    const logActivity = (activity: Omit<ActivityLog, 'id' | 'userId'>) => {
         if (!currentUser) return { success: false, message: 'Not logged in' };
 
-        // Daily cap validation — only applies to regular (non-weekend) activities
-        if (!activityData.isWeekendChallenge) {
-            const todaysLogs = activities.filter(
-                a => a.userId === currentUser.id && a.date === activityData.date && !a.isWeekendChallenge
-            );
-            const existingPoints = todaysLogs.reduce((sum, a) => sum + a.points, 0);
+        // 1. Cap validation (Optimistic Check)
+        const myTodayActivities = activities.filter(a => a.userId === currentUser.id && a.date === activity.date && !a.isWeekendChallenge);
+        const myTodayPoints = myTodayActivities.reduce((sum, a) => sum + a.points, 0);
 
-            if (existingPoints + activityData.points > 100) {
-                return {
-                    success: false,
-                    message: `Adding this would exceed the 100 pt daily cap. You already have ${existingPoints} pts today.`
-                };
+        if (!activity.isWeekendChallenge) {
+            if (myTodayPoints >= 100) return { success: false, message: 'Daily limit of 100 pts reached.' };
+            if (myTodayPoints + activity.points > 100) {
+                activity.points = 100 - myTodayPoints; // cap the points
             }
         }
 
-        const newActivity: ActivityLog = {
-            ...activityData,
-            id: generateMockId(),
+        const newLog: ActivityLog = {
+            ...activity,
+            id: generateMockId('act'),
             userId: currentUser.id
         };
 
-        setActivities([...activities, newActivity]);
+        // UI updates instantly
+        setActivities([...activities, newLog]);
+
+        // Background push to SQLite DB
+        logActivityDB({
+            userId: currentUser.id,
+            date: activity.date,
+            category: activity.category,
+            points: activity.points,
+            duration: activity.duration,
+            stepCount: activity.stepCount,
+            bonusPoints: activity.bonusPoints,
+            isWeekendChallenge: activity.isWeekendChallenge || false
+        });
+
         return { success: true };
     };
 

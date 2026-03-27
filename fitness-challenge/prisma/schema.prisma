@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  name          String
+  fullName      String?
+  email         String?
+  contactNumber String?
+  username      String?   @unique
+  password      String?
+  workStream    String
+  location      String
+  role          String    @default("user") // admin | user
+  avatarUrl     String?
+  teamId        String?
+  team          Team?     @relation("TeamMembers", fields: [teamId], references: [id])
+  
+  captainOf     Team?     @relation("TeamCaptain")
+  
+  pendingTeamId String?
+  pendingTeam   Team?     @relation("PendingRequests", fields: [pendingTeamId], references: [id])
+
+  activities    ActivityLog[]
+  posts         Post[]
+  comments      Comment[]
+  likedPosts    PostLike[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Team {
+  id              String   @id @default(uuid())
+  name            String
+  captainId       String   @unique
+  captain         User     @relation("TeamCaptain", fields: [captainId], references: [id])
+  brandImageUrl   String?
+  members         User[]   @relation("TeamMembers")
+  pendingRequests User[]   @relation("PendingRequests")
+  
+  teamBonusPoints TeamBonusPoint[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ActivityLog {
+  id                 String   @id @default(uuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date               String   // YYYY-MM-DD
+  category           String   // Sports | Movement | Power | Flow | Zen | WeekendDuo | WeekendPhoto | Steps
+  points             Float
+  duration           Int?     // duration in minutes
+  stepCount          Int?     // steps for 'Steps' category
+  bonusPoints        Float?
+  isWeekendChallenge Boolean  @default(false)
+
+  createdAt          DateTime @default(now())
+}
+
+model WeekendChallenge {
+  id              String   @id @default(uuid())
+  weekNo          String
+  name            String
+  description     String
+  bonusPointsDesc String
+  isVisible       Boolean  @default(false)
+  posts           Post[]   // Posts tagged to this challenge
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model TeamBonusPoint {
+  id          String   @id @default(uuid())
+  teamId      String
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  challengeId String
+  points      Float
+  dateStr     String
+  
+  createdAt   DateTime @default(now())
+}
+
+model Post {
+  id                 String            @id @default(uuid())
+  userId             String
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content            String
+  mediaUrl           String?
+  createdAt          DateTime          @default(now())
+  
+  weekendChallengeId String?
+  weekendChallenge   WeekendChallenge? @relation(fields: [weekendChallengeId], references: [id], onDelete: SetNull)
+
+  comments           Comment[]
+  likes              PostLike[]
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model PostLike {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+}
+
+model Award {
+  id          String   @id @default(uuid())
+  week        String   // Week 1, Week 2, Week 3, Overall
+  category    String
+  winnerId    String
+  winnerType  String   // team | individual
+  winnerName  String
+  description String?
+  points      Float?
+  announcedAt String
+
+  createdAt   DateTime @default(now())
+}

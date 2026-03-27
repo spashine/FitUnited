@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import Link from 'next/link';
@@ -32,7 +31,7 @@ export default function Navigation() {
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
-    const navLinks = [
+    const coreLinks = [
         { href: '/', label: 'Home' },
         ...(currentUser ? [
             { href: '/dashboard', label: 'My Activity' },
@@ -42,64 +41,107 @@ export default function Navigation() {
             { href: '/hall-of-fame', label: 'Hall of Fame' },
             { href: '/social-wall', label: 'Social Wall' },
         ] : []),
-        ...(currentUser?.role === 'admin' ? [
-            { href: '/admin/weekend', label: 'Weekend Challenges' },
-            { href: '/admin/awards', label: 'Manage Awards' },
-        ] : []),
     ];
+
+    const adminLinks = currentUser?.role === 'admin' ? [
+        { href: '/admin/weekend', label: 'Weekend Challenges' },
+        { href: '/admin/awards', label: 'Manage Awards' },
+    ] : [];
+
+    const isAnyAdminActive = adminLinks.some(link => pathname === link.href);
 
     return (
         <nav className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? 'bg-ey-dark/95 backdrop-blur-md shadow-lg py-1 border-b border-ey-yellow/10' : 'bg-ey-dark py-3'}`}>
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="max-w-[1400px] mx-auto px-4 sm:px-6">
                 <div className="flex items-center justify-between h-14">
                     
                     {/* Brand / Logo */}
-                    <div className="flex items-center gap-8">
-                        <Link href="/" className="group flex items-center gap-3 outline-none">
+                    <div className="flex items-center gap-4 lg:gap-8">
+                        <Link href="/" className="group flex items-center gap-3 outline-none shrink-0">
                             <div className="w-9 h-9 shrink-0 rounded-xl bg-ey-yellow flex items-center justify-center shadow-lg group-hover:scale-105 group-hover:shadow-[0_0_15px_rgba(255,230,0,0.3)] transition-all duration-300">
                                 <span className="text-ey-dark text-lg leading-none mt-0.5">⚡</span>
                             </div>
-                            <span className="font-extrabold text-lg tracking-tight text-white group-hover:text-gray-200 transition-colors hidden sm:block whitespace-nowrap">
+                            <span className="font-extrabold text-lg tracking-tight text-white group-hover:text-gray-200 transition-colors hidden md:block whitespace-nowrap">
                                 Wellbeing Challenge <span className="text-ey-yellow">&apos;26</span>
                             </span>
                         </Link>
 
-                        {/* Desktop Links */}
-                        <div className="hidden lg:flex items-center space-x-1">
-                            {navLinks.map((link) => {
+                        {/* Desktop Links (Visible on lg and up) */}
+                        <div className="hidden lg:flex items-center space-x-1 flex-wrap">
+                            {coreLinks.map((link) => {
                                 const isActive = pathname === link.href;
                                 return (
                                     <Link
                                         key={link.href}
                                         href={link.href}
-                                        className={`relative group px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center gap-2 ${
+                                        className={`relative group px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 whitespace-nowrap ${
                                             isActive
                                                 ? 'bg-white/10 text-white shadow-inner'
                                                 : 'text-gray-300 hover:bg-white/5 hover:text-white'
                                         }`}
                                     >
-                                        <span className={`${isActive ? 'opacity-100 scale-110 drop-shadow' : 'opacity-70 group-hover:opacity-100 group-hover:scale-110'} transition-all`}>
+                                        <span className={`${isActive ? 'opacity-100 scale-110' : 'opacity-70 group-hover:opacity-100 group-hover:scale-110'} transition-all`}>
                                             {NAV_ICONS[link.label]}
                                         </span>
-                                        <span className={isActive ? "text-ey-yellow" : ""}>{link.label}</span>
+                                        <span className={isActive ? "text-ey-yellow font-bold" : ""}>{link.label}</span>
                                         
                                         {/* Active Indicator Line */}
                                         {isActive && (
-                                            <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3/4 h-1 bg-ey-yellow rounded-t-full shadow-[0_0_8px_rgba(255,230,0,0.6)]" />
+                                            <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3/4 h-[3px] bg-ey-yellow rounded-t-full shadow-[0_0_8px_rgba(255,230,0,0.6)]" />
                                         )}
                                     </Link>
                                 );
                             })}
+
+                            {/* Admins: Dropdown to save horizontal space */}
+                            {adminLinks.length > 0 && (
+                                <div className="relative group px-1">
+                                    <button className={`relative px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 whitespace-nowrap outline-none ${
+                                            isAnyAdminActive
+                                                ? 'bg-ey-yellow/10 text-ey-yellow shadow-inner'
+                                                : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                                        }`}
+                                    >
+                                        <span className={`transition-all ${isAnyAdminActive ? 'opacity-100 scale-110' : 'opacity-70 group-hover:opacity-100 group-hover:scale-110'}`}>
+                                            🔐
+                                        </span>
+                                        <span className={isAnyAdminActive ? "font-bold" : ""}>Admin</span>
+                                        
+                                        {isAnyAdminActive && (
+                                            <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3/4 h-[3px] bg-ey-yellow rounded-t-full shadow-[0_0_8px_rgba(255,230,0,0.6)]" />
+                                        )}
+                                    </button>
+
+                                    {/* Dropdown Menu */}
+                                    <div className="absolute top-full right-0 pt-2 opacity-0 select-none pointer-events-none group-hover:opacity-100 group-hover:select-auto group-hover:pointer-events-auto transition-all duration-200 z-50">
+                                        <div className="bg-ey-dark border border-gray-700 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] overflow-hidden min-w-[200px] flex flex-col py-1 backdrop-blur-md">
+                                            <div className="px-4 py-2 border-b border-gray-800 bg-gray-900/50">
+                                                <span className="text-[10px] uppercase font-black tracking-widest text-ey-yellow">Admin Tools</span>
+                                            </div>
+                                            {adminLinks.map(link => (
+                                                <Link 
+                                                    key={link.href} 
+                                                    href={link.href}
+                                                    className={`px-4 py-3 text-sm flex items-center gap-3 hover:bg-white/5 transition-colors ${pathname === link.href ? 'text-ey-yellow bg-white/5 font-bold' : 'text-gray-300'}`}
+                                                >
+                                                    <span className="text-lg">{NAV_ICONS[link.label]}</span>
+                                                    {link.label}
+                                                </Link>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
                     {/* Right Side - Profile & Auth */}
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 sm:gap-4 shrink-0">
                         {currentUser ? (
                             <div className="flex items-center gap-3 sm:gap-5">
                                 <Link
                                     href="/profile"
-                                    className="flex items-center gap-3 group outline-none rounded-full p-1 pr-3 hover:bg-white/5 transition-colors"
+                                    className="flex items-center gap-3 group outline-none rounded-full p-1 pr-3 hover:bg-white/5 hover:ring-1 ring-white/10 transition-all cursor-pointer"
                                 >
                                     <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-gray-600 group-hover:border-ey-yellow transition-colors shadow-sm shrink-0 bg-gray-800 flex items-center justify-center relative">
                                         {currentUser.avatarUrl ? (
@@ -123,14 +165,14 @@ export default function Navigation() {
                                     </div>
                                 </Link>
                                 
-                                <div className="h-8 w-px bg-gray-700/50 hidden sm:block"></div>
+                                <div className="h-8 w-px bg-gray-700/50 hidden sm:block shrink-0"></div>
                                 
                                 <button
                                     onClick={() => {
                                         logoutUser();
                                         window.location.href = '/';
                                     }}
-                                    className="p-2.5 text-gray-400 hover:text-rose-400 hover:bg-rose-400/10 rounded-xl transition-colors outline-none flex items-center justify-center group"
+                                    className="p-2.5 text-gray-400 hover:text-rose-400 hover:bg-rose-400/10 rounded-xl transition-all outline-none flex items-center justify-center group shrink-0 shadow-sm border border-transparent hover:border-rose-400/20"
                                     title="Logout"
                                 >
                                     <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -148,7 +190,7 @@ export default function Navigation() {
                 ═══════════════════════════════════════════════ */}
             <div className="lg:hidden w-full border-t border-gray-800 bg-ey-dark/95 backdrop-blur-md overflow-x-auto scrollbar-hide overscroll-x-contain shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] mt-2">
                 <div className="flex px-2 py-2 gap-1 min-w-max">
-                    {navLinks.map((link) => {
+                    {[...coreLinks, ...adminLinks].map((link) => {
                         const isActive = pathname === link.href;
                         return (
                             <Link
@@ -161,7 +203,7 @@ export default function Navigation() {
                                 }`}
                             >
                                 <span className={`text-xl mb-1.5 transition-all ${isActive ? 'scale-110 drop-shadow-[0_0_8px_rgba(255,230,0,0.5)]' : 'opacity-80'}`}>
-                                    {NAV_ICONS[link.label]}
+                                    {NAV_ICONS[link.label] || '🔗'}
                                 </span>
                                 <span className={`text-[10px] font-bold whitespace-nowrap tracking-wide ${isActive ? 'text-ey-yellow' : ''}`}>
                                     {link.label}
